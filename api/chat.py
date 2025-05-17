@@ -1,16 +1,14 @@
 import pdfplumber
 import logging
-import openai
 import os
 import re
 import traceback
-
 import pandas as pd
 from io import BytesIO
 from dotenv import load_dotenv
 from difflib import SequenceMatcher
-from openai.error import RateLimitError
 from flask import Blueprint, request, jsonify
+from openai import OpenAI, RateLimitError, APIError
 
 # Cargar variables de entorno
 load_dotenv()
@@ -20,24 +18,26 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # Configurar logs
 logging.basicConfig(level=logging.INFO)
 
-# Configuramos IA
-openai.api_key = OPENAI_API_KEY
+# Configurar cliente OpenAI
+client = OpenAI(api_key=OPENAI_API_KEY)
+
 user_contexts = {}
 MAX_CONTEXT_LENGTH = 20
 
+# Función de interacción con OpenAI
 def openai_IA(mensajes, model=MODEL, temperature=0.7):
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model=model,
             messages=mensajes,
             temperature=temperature,
         )
-        return response.choices[0].message["content"]
+        return response.choices[0].message.content
     except RateLimitError:
         logging.error("Saldo insuficiente en el token de OpenAI.")
         return "Error: Saldo insuficiente en el token de OpenAI."
     except Exception as e:
-        logging.error(traceback.format_exc())
+        logging.error(f"Error en OpenAI: {e}")
         return "Error en la IA al procesar la solicitud."
 
 # PDF
@@ -56,14 +56,15 @@ def compare_pdfs(reference_text: str, uploaded_pdf: str) -> bool:
     similarity = SequenceMatcher(None, reference_text, uploaded_pdf).ratio()
     similarity_percentage = similarity * 100
     print(similarity_percentage)
-    return 5 < similarity_percentage < 90
+    if similarity_percentage <= 5 or similarity_percentage >= 90:
+        return False
+    return True
 
 REFERENCE_TEXT = extract_text_from_pdf(REFERENCE_PDF_PATH)
 REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
 REFERENCE_DF = pd.read_excel(REFERENCE_FILE_PATH)
 
 # XLSX
-
 def compare_files(reference_df, uploaded_df):
     if "Unnamed: 0" in reference_df.columns:
         reference_df = reference_df.drop(columns=["Unnamed: 0"])
@@ -71,10 +72,11 @@ def compare_files(reference_df, uploaded_df):
         uploaded_df = uploaded_df.iloc[:, 1:]
     if uploaded_df.dropna().empty:
         return False
-    return reference_df.columns.equals(uploaded_df.columns)
+    if not reference_df.columns.equals(uploaded_df.columns):
+        return False
+    return True
 
 # CSV
-
 def transform_and_compare(file):
     try:
         try:
@@ -110,7 +112,6 @@ def transform_and_compare(file):
     return 5 < similarity < 80
 
 # TITLE
-
 def load_bad_words():
     path = os.path.join(os.path.dirname(__file__), '..', 'rules', 'rule_title.txt')
     if not os.path.exists(path):
@@ -129,9 +130,7 @@ def chat():
     user_message = data.get('message')
 
     if not user_message:
-        response = jsonify({"error": "Mensaje requerido"})
-        response.headers.add("Access-Control-Allow-Origin", "https://cozy-moonbeam-d256ea.netlify.app")
-        return response, 400
+        return jsonify({"error": "Mensaje requerido"}), 400
 
     if user_id not in user_contexts:
         user_contexts[user_id] = []
@@ -140,15 +139,11 @@ def chat():
                 reglas = f.read().strip()
                 user_contexts[user_id].append({'role': 'system', 'content': reglas})
         except Exception as e:
-            response = jsonify({"error": "No se pudieron cargar las reglas"})
-            response.headers.add("Access-Control-Allow-Origin", "https://cozy-moonbeam-d256ea.netlify.app")
-            return response, 500
+            return jsonify({"error": "No se pudieron cargar las reglas"}), 500
 
     user_contexts[user_id].append({'role': 'user', 'content': user_message})
     user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
-    ai_response = openai_IA(user_contexts[user_id])
+    respuesta = openai_IA(user_contexts[user_id])
 
-    response = jsonify({"response": ai_response})
-    response.headers.add("Access-Control-Allow-Origin", "https://cozy-moonbeam-d256ea.netlify.app")
-    return response
+    return jsonify({"response": respuesta})
