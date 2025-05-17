@@ -4,11 +4,14 @@ import os
 import re
 import traceback
 import pandas as pd
+import openai
+from openai.error import RateLimitError, APIError
+
 from io import BytesIO
 from dotenv import load_dotenv
 from difflib import SequenceMatcher
 from flask import Blueprint, request, jsonify
-from openai import OpenAI, RateLimitError, APIError
+
 
 # Cargar variables de entorno
 load_dotenv()
