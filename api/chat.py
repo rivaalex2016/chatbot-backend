@@ -1,17 +1,16 @@
 import pdfplumber
 import logging
+import openai
 import os
 import re
 import traceback
-import pandas as pd
-import openai
-from openai.error import RateLimitError, APIError
 
+import pandas as pd
 from io import BytesIO
 from dotenv import load_dotenv
 from difflib import SequenceMatcher
+from openai.error import RateLimitError
 from flask import Blueprint, request, jsonify
-
 
 # Cargar variables de entorno
 load_dotenv()
@@ -21,21 +20,19 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # Configurar logs
 logging.basicConfig(level=logging.INFO)
 
-# Configurar cliente OpenAI
-client = OpenAI(api_key=OPENAI_API_KEY)
-
+# Configuramos IA
+openai.api_key = OPENAI_API_KEY
 user_contexts = {}
 MAX_CONTEXT_LENGTH = 20
 
-# Función de interacción con OpenAI
 def openai_IA(mensajes, model=MODEL, temperature=0.7):
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model=model,
             messages=mensajes,
             temperature=temperature,
         )
-        return response.choices[0].message.content
+        return response.choices[0].message["content"]
     except RateLimitError:
         logging.error("Saldo insuficiente en el token de OpenAI.")
         return "Error: Saldo insuficiente en el token de OpenAI."
@@ -43,8 +40,9 @@ def openai_IA(mensajes, model=MODEL, temperature=0.7):
         logging.error(f"Error en OpenAI: {e}")
         return "Error en la IA al procesar la solicitud."
 
-# PDF
+# 📌 PDF
 REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
+
 def extract_text_from_pdf(file) -> str:
     try:
         text = ""
@@ -67,7 +65,7 @@ REFERENCE_TEXT = extract_text_from_pdf(REFERENCE_PDF_PATH)
 REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
 REFERENCE_DF = pd.read_excel(REFERENCE_FILE_PATH)
 
-# XLSX
+# 📌 XLSX
 def compare_files(reference_df, uploaded_df):
     if "Unnamed: 0" in reference_df.columns:
         reference_df = reference_df.drop(columns=["Unnamed: 0"])
@@ -76,10 +74,10 @@ def compare_files(reference_df, uploaded_df):
     if uploaded_df.dropna().empty:
         return False
     if not reference_df.columns.equals(uploaded_df.columns):
-        return False
+        return False  
     return True
 
-# CSV
+# 📌 CSV
 def transform_and_compare(file):
     try:
         try:
@@ -114,7 +112,7 @@ def transform_and_compare(file):
     similarity = SequenceMatcher(None, ref_text, gen_text).ratio() * 100
     return 5 < similarity < 80
 
-# TITLE
+# 📌 TITLE
 def load_bad_words():
     path = os.path.join(os.path.dirname(__file__), '..', 'rules', 'rule_title.txt')
     if not os.path.exists(path):
@@ -122,11 +120,12 @@ def load_bad_words():
     with open(path, 'r') as f:
         return [line.strip() for line in f.readlines()]
 
-# API
+# 📌 API
 chat_blueprint = Blueprint('chat', __name__)
 
 @chat_blueprint.route('/chat', methods=['POST'])
 def chat():
+    # ✅ CAMBIO CLAVE: leer JSON
     data = request.get_json()
 
     user_id = data.get('user_id', 'default_user')
@@ -135,6 +134,7 @@ def chat():
     if not user_message:
         return jsonify({"error": "Mensaje requerido"}), 400
 
+    # Iniciar contexto si no existe
     if user_id not in user_contexts:
         user_contexts[user_id] = []
         try:
@@ -144,9 +144,11 @@ def chat():
         except Exception as e:
             return jsonify({"error": "No se pudieron cargar las reglas"}), 500
 
+    # Agregar mensaje del usuario
     user_contexts[user_id].append({'role': 'user', 'content': user_message})
     user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
+    # Obtener respuesta de la IA
     respuesta = openai_IA(user_contexts[user_id])
 
-    return jsonify({"response": respuesta})
+    return jsonify({ "response": respuesta })
