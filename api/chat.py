@@ -3,6 +3,7 @@ import logging
 import openai
 import os
 import re
+import traceback
 
 import pandas as pd
 from io import BytesIO
@@ -36,10 +37,10 @@ def openai_IA(mensajes, model=MODEL, temperature=0.7):
         logging.error("Saldo insuficiente en el token de OpenAI.")
         return "Error: Saldo insuficiente en el token de OpenAI."
     except Exception as e:
-        logging.error(f"Error en OpenAI: {e}")
+        logging.error(traceback.format_exc())
         return "Error en la IA al procesar la solicitud."
 
-# 📌 PDF
+# PDF
 REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
 def extract_text_from_pdf(file) -> str:
     try:
@@ -55,15 +56,14 @@ def compare_pdfs(reference_text: str, uploaded_pdf: str) -> bool:
     similarity = SequenceMatcher(None, reference_text, uploaded_pdf).ratio()
     similarity_percentage = similarity * 100
     print(similarity_percentage)
-    if similarity_percentage <= 5 or similarity_percentage >= 90:
-        return False
-    return True
+    return 5 < similarity_percentage < 90
 
 REFERENCE_TEXT = extract_text_from_pdf(REFERENCE_PDF_PATH)
 REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
 REFERENCE_DF = pd.read_excel(REFERENCE_FILE_PATH)
 
-# 📌 XLSX
+# XLSX
+
 def compare_files(reference_df, uploaded_df):
     if "Unnamed: 0" in reference_df.columns:
         reference_df = reference_df.drop(columns=["Unnamed: 0"])
@@ -71,11 +71,10 @@ def compare_files(reference_df, uploaded_df):
         uploaded_df = uploaded_df.iloc[:, 1:]
     if uploaded_df.dropna().empty:
         return False
-    if not reference_df.columns.equals(uploaded_df.columns):
-        return False  
-    return True
+    return reference_df.columns.equals(uploaded_df.columns)
 
-# 📌 CSV
+# CSV
+
 def transform_and_compare(file):
     try:
         try:
@@ -110,7 +109,8 @@ def transform_and_compare(file):
     similarity = SequenceMatcher(None, ref_text, gen_text).ratio() * 100
     return 5 < similarity < 80
 
-# 📌 TITLE
+# TITLE
+
 def load_bad_words():
     path = os.path.join(os.path.dirname(__file__), '..', 'rules', 'rule_title.txt')
     if not os.path.exists(path):
@@ -118,21 +118,21 @@ def load_bad_words():
     with open(path, 'r') as f:
         return [line.strip() for line in f.readlines()]
 
-# 📌 API
+# API
 chat_blueprint = Blueprint('chat', __name__)
 
 @chat_blueprint.route('/chat', methods=['POST'])
 def chat():
-    # ✅ CAMBIO CLAVE: leer JSON, no form
     data = request.get_json()
 
     user_id = data.get('user_id', 'default_user')
     user_message = data.get('message')
 
     if not user_message:
-        return jsonify({"error": "Mensaje requerido"}), 400
+        response = jsonify({"error": "Mensaje requerido"})
+        response.headers.add("Access-Control-Allow-Origin", "https://cozy-moonbeam-d256ea.netlify.app")
+        return response, 400
 
-    # Iniciar contexto si no existe
     if user_id not in user_contexts:
         user_contexts[user_id] = []
         try:
@@ -140,13 +140,15 @@ def chat():
                 reglas = f.read().strip()
                 user_contexts[user_id].append({'role': 'system', 'content': reglas})
         except Exception as e:
-            return jsonify({"error": "No se pudieron cargar las reglas"}), 500
+            response = jsonify({"error": "No se pudieron cargar las reglas"})
+            response.headers.add("Access-Control-Allow-Origin", "https://cozy-moonbeam-d256ea.netlify.app")
+            return response, 500
 
-    # Agregar mensaje del usuario
     user_contexts[user_id].append({'role': 'user', 'content': user_message})
     user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
-    # Obtener respuesta
-    respuesta = openai_IA(user_contexts[user_id])
+    ai_response = openai_IA(user_contexts[user_id])
 
-    return jsonify({ "response": respuesta })
+    response = jsonify({"response": ai_response})
+    response.headers.add("Access-Control-Allow-Origin", "https://cozy-moonbeam-d256ea.netlify.app")
+    return response
