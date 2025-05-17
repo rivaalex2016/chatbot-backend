@@ -11,7 +11,7 @@ load_dotenv()
 
 # CORS: permitir peticiones desde tu frontend público en Netlify
 CORS(app, resources={r"/api/*": {
-    "origins": "https://chatbotinnovug.netlify.app"
+    "origins": "https://cozy-moonbeam-d256ea.netlify.app/"
 }})
 
 # Registrar el blueprint del chatbot
