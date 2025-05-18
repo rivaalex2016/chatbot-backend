@@ -1,10 +1,8 @@
-# chat.py actualizado para aceptar PDF, CSV, XLSX y título desde /api/chat
 import pdfplumber
 import logging
 import openai
 import os
-import re
-
+import json
 import pandas as pd
 from io import BytesIO
 from dotenv import load_dotenv
@@ -12,31 +10,18 @@ from difflib import SequenceMatcher
 from openai.error import RateLimitError
 from flask import Blueprint, request, jsonify
 
+# Cargar variables de entorno
 load_dotenv()
 MODEL = os.getenv('MODEL')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+# Configurar logs
 logging.basicConfig(level=logging.INFO)
 
+# Configurar API de OpenAI
 openai.api_key = OPENAI_API_KEY
 user_contexts = {}
 MAX_CONTEXT_LENGTH = 20
-
-REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
-REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
-REFERENCE_TEXT = None
-REFERENCE_DF = None
-
-try:
-    with pdfplumber.open(REFERENCE_PDF_PATH) as pdf:
-        REFERENCE_TEXT = "\n".join(page.extract_text() or "" for page in pdf.pages).strip().lower()
-except:
-    REFERENCE_TEXT = ""
-
-try:
-    REFERENCE_DF = pd.read_excel(REFERENCE_FILE_PATH)
-except:
-    REFERENCE_DF = pd.DataFrame()
 
 def openai_IA(mensajes, model=MODEL, temperature=0.7):
     try:
@@ -47,23 +32,35 @@ def openai_IA(mensajes, model=MODEL, temperature=0.7):
         )
         return response.choices[0].message["content"]
     except RateLimitError:
-        logging.error("Token de OpenAI insuficiente.")
-        return "Error: Token de OpenAI insuficiente."
+        logging.error("Saldo insuficiente en el token de OpenAI.")
+        return "Error: Saldo insuficiente en el token de OpenAI."
     except Exception as e:
         logging.error(f"Error en OpenAI: {e}")
-        return "Error procesando la solicitud de la IA."
+        return "Error en la IA al procesar la solicitud."
 
+# 📌 Rutas referencia
+REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
+REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
+REFERENCE_DF = pd.read_excel(REFERENCE_FILE_PATH)
+
+# 📌 PDF
 def extract_text_from_pdf(file) -> str:
-    text = ""
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() or ""
-    return text.strip().lower()
+    try:
+        text = ""
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+        return text.strip().lower()
+    except Exception as e:
+        raise RuntimeError(f"Error al procesar el PDF: {e}")
 
-def compare_pdfs(reference_text: str, uploaded_text: str) -> bool:
-    similarity = SequenceMatcher(None, reference_text, uploaded_text).ratio() * 100
+def compare_pdfs(reference_text: str, uploaded_pdf: str) -> bool:
+    similarity = SequenceMatcher(None, reference_text, uploaded_pdf).ratio() * 100
     return 5 < similarity < 90
 
+REFERENCE_TEXT = extract_text_from_pdf(REFERENCE_PDF_PATH)
+
+# 📌 XLSX
 def compare_files(reference_df, uploaded_df):
     if "Unnamed: 0" in reference_df.columns:
         reference_df = reference_df.drop(columns=["Unnamed: 0"])
@@ -73,100 +70,96 @@ def compare_files(reference_df, uploaded_df):
         return False
     return reference_df.columns.equals(uploaded_df.columns)
 
+# 📌 CSV
 def transform_and_compare(file):
     try:
-        df = pd.read_csv(file, encoding='utf-8', on_bad_lines='skip')
-    except UnicodeDecodeError:
-        file.seek(0)
         try:
-            df = pd.read_csv(file, encoding='ISO-8859-1', on_bad_lines='skip')
-        except:
+            df = pd.read_csv(file, encoding='utf-8', on_bad_lines='skip')
+        except UnicodeDecodeError:
             file.seek(0)
-            df = pd.read_csv(file, delimiter=';', encoding='ISO-8859-1', on_bad_lines='skip')
+            try:
+                df = pd.read_csv(file, encoding='ISO-8859-1', on_bad_lines='skip')
+            except Exception:
+                file.seek(0)
+                df = pd.read_csv(file, delimiter=';', encoding='ISO-8859-1', on_bad_lines='skip')
+    except Exception as e:
+        raise Exception(f"Error leyendo el CSV: {e}")
 
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
+    try:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Sheet1')
+    except Exception as e:
+        raise Exception(f"Error al convertir a XLSX: {e}")
     output.seek(0)
 
-    ref_df = pd.read_excel(REFERENCE_FILE_PATH)
-    gen_df = pd.read_excel(output)
+    try:
+        ref_df = pd.read_excel(REFERENCE_FILE_PATH)
+        gen_df = pd.read_excel(output)
+    except Exception as e:
+        raise Exception(f"Error leyendo archivo XLSX: {e}")
 
-    ref_text = ref_df.to_string(index=False)
-    gen_text = gen_df.to_string(index=False)
-    similarity = SequenceMatcher(None, ref_text, gen_text).ratio() * 100
+    similarity = SequenceMatcher(None, ref_df.to_string(index=False), gen_df.to_string(index=False)).ratio() * 100
     return 5 < similarity < 80
 
+# 📌 TÍTULOS
 def load_bad_words():
     path = os.path.join(os.path.dirname(__file__), '..', 'rules', 'rule_title.txt')
     if not os.path.exists(path):
-        return []
+        raise FileNotFoundError(f"El archivo {path} no fue encontrado.")
     with open(path, 'r') as f:
         return [line.strip() for line in f.readlines()]
 
+# 📌 Persistencia de contexto
+def cargar_contexto(user_id):
+    path = os.path.join("contextos", f"{user_id}.json")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def guardar_contexto(user_id, contexto):
+    os.makedirs("contextos", exist_ok=True)
+    path = os.path.join("contextos", f"{user_id}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(contexto, f, ensure_ascii=False, indent=2)
+
+# 📌 API
 chat_blueprint = Blueprint('chat', __name__)
 
 @chat_blueprint.route('/chat', methods=['POST'])
 def chat():
-    user_id = request.form.get("user_id", "default_user")
-    user_message = request.form.get("message", "")
-    pdf_file = request.files.get("pdf")
-    xlsx_file = request.files.get("xlsx")
-    csv_file = request.files.get("csv")
-    title = request.form.get("title")
+    data = request.get_json()
+    user_id = data.get('user_id', 'default_user')
+    user_message = data.get('message')
 
     if not user_message:
         return jsonify({"error": "Mensaje requerido"}), 400
 
+    # Cargar contexto del usuario (de archivo si no está en memoria)
     if user_id not in user_contexts:
-        user_contexts[user_id] = []
-        try:
-            with open(os.path.join(os.path.dirname(__file__), '../rules/rule_chat.txt'), 'r', encoding='utf-8') as f:
-                reglas = f.read().strip()
-                user_contexts[user_id].append({'role': 'system', 'content': reglas})
-        except Exception:
-            return jsonify({"error": "No se pudieron cargar las reglas"}), 500
+        contexto = cargar_contexto(user_id)
+        if not contexto:
+            try:
+                with open(os.path.join(os.path.dirname(__file__), '../rules/rule_chat.txt'), 'r', encoding='utf-8') as f:
+                    reglas = f.read().strip()
+                    contexto.append({'role': 'system', 'content': reglas})
+            except Exception:
+                return jsonify({"error": "No se pudieron cargar las reglas"}), 500
+        user_contexts[user_id] = contexto
 
-    # Procesar PDF si viene
-    if pdf_file and pdf_file.filename.endswith(".pdf"):
-        try:
-            uploaded_text = extract_text_from_pdf(pdf_file)
-            if compare_pdfs(REFERENCE_TEXT, uploaded_text):
-                user_contexts[user_id].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
-            else:
-                return jsonify({"response": "El PDF no cumple con los criterios esperados."})
-        except Exception as e:
-            return jsonify({"response": f"Error procesando PDF: {str(e)}"})
-
-    # Procesar XLSX
-    if xlsx_file and xlsx_file.filename.endswith(".xlsx"):
-        df = pd.read_excel(xlsx_file)
-        if compare_files(REFERENCE_DF, df):
-            user_contexts[user_id].append({'role': 'user', 'content': f"XLSX:\n{df.to_string(index=False)}"})
-        else:
-            return jsonify({"response": "El archivo XLSX no coincide con la estructura esperada."})
-
-    # Procesar CSV
-    if csv_file and csv_file.filename.endswith(".csv"):
-        try:
-            if transform_and_compare(csv_file):
-                user_contexts[user_id].append({'role': 'user', 'content': f"CSV: Archivo compatible cargado."})
-            else:
-                return jsonify({"response": "El archivo CSV no es válido o no tiene el formato correcto."})
-        except Exception as e:
-            return jsonify({"response": f"Error procesando CSV: {str(e)}"})
-
-    # Validar título
-    if title:
-        bad_words = load_bad_words()
-        if any(re.search(rf'\b{re.escape(word)}\b', title, re.IGNORECASE) for word in bad_words):
-            return jsonify({"response": "Ese título contiene palabras no permitidas."})
-        user_contexts[user_id].append({'role': 'user', 'content': f"Título:\n{title}"})
-
-    # Agregar el mensaje y obtener respuesta de OpenAI
+    # Agregar mensaje y recortar si es necesario
     user_contexts[user_id].append({'role': 'user', 'content': user_message})
     user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
+    # Obtener respuesta IA
     respuesta = openai_IA(user_contexts[user_id])
 
-    return jsonify({ "response": respuesta })
+    # Agregar respuesta al contexto
+    user_contexts[user_id].append({'role': 'assistant', 'content': respuesta})
+    user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
+
+    # Guardar contexto en archivo
+    guardar_contexto(user_id, user_contexts[user_id])
+
+    return jsonify({"response": respuesta})
