@@ -1,3 +1,4 @@
+# chat.py actualizado
 import pdfplumber
 import logging
 import openai
@@ -23,6 +24,8 @@ openai.api_key = OPENAI_API_KEY
 user_contexts = {}
 MAX_CONTEXT_LENGTH = 20
 
+# IA
+
 def openai_IA(mensajes, model=MODEL, temperature=0.7):
     try:
         response = openai.ChatCompletion.create(
@@ -38,12 +41,13 @@ def openai_IA(mensajes, model=MODEL, temperature=0.7):
         logging.error(f"Error en OpenAI: {e}")
         return "Error en la IA al procesar la solicitud."
 
-# 📌 Rutas referencia
+# 📌 Rutas de referencia
 REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
 REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
 REFERENCE_DF = pd.read_excel(REFERENCE_FILE_PATH)
 
 # 📌 PDF
+
 def extract_text_from_pdf(file) -> str:
     try:
         text = ""
@@ -54,6 +58,7 @@ def extract_text_from_pdf(file) -> str:
     except Exception as e:
         raise RuntimeError(f"Error al procesar el PDF: {e}")
 
+
 def compare_pdfs(reference_text: str, uploaded_pdf: str) -> bool:
     similarity = SequenceMatcher(None, reference_text, uploaded_pdf).ratio() * 100
     return 5 < similarity < 90
@@ -61,6 +66,7 @@ def compare_pdfs(reference_text: str, uploaded_pdf: str) -> bool:
 REFERENCE_TEXT = extract_text_from_pdf(REFERENCE_PDF_PATH)
 
 # 📌 XLSX
+
 def compare_files(reference_df, uploaded_df):
     if "Unnamed: 0" in reference_df.columns:
         reference_df = reference_df.drop(columns=["Unnamed: 0"])
@@ -71,6 +77,7 @@ def compare_files(reference_df, uploaded_df):
     return reference_df.columns.equals(uploaded_df.columns)
 
 # 📌 CSV
+
 def transform_and_compare(file):
     try:
         try:
@@ -103,6 +110,7 @@ def transform_and_compare(file):
     return 5 < similarity < 80
 
 # 📌 TÍTULOS
+
 def load_bad_words():
     path = os.path.join(os.path.dirname(__file__), '..', 'rules', 'rule_title.txt')
     if not os.path.exists(path):
@@ -111,6 +119,7 @@ def load_bad_words():
         return [line.strip() for line in f.readlines()]
 
 # 📌 Persistencia de contexto
+
 def cargar_contexto(user_id):
     path = os.path.join("contextos", f"{user_id}.json")
     if os.path.exists(path):
@@ -136,7 +145,6 @@ def chat():
     if not user_message:
         return jsonify({"error": "Mensaje requerido"}), 400
 
-    # Cargar contexto del usuario (de archivo si no está en memoria)
     if user_id not in user_contexts:
         contexto = cargar_contexto(user_id)
         if not contexto:
@@ -148,18 +156,29 @@ def chat():
                 return jsonify({"error": "No se pudieron cargar las reglas"}), 500
         user_contexts[user_id] = contexto
 
-    # Agregar mensaje y recortar si es necesario
     user_contexts[user_id].append({'role': 'user', 'content': user_message})
     user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
-    # Obtener respuesta IA
     respuesta = openai_IA(user_contexts[user_id])
 
-    # Agregar respuesta al contexto
     user_contexts[user_id].append({'role': 'assistant', 'content': respuesta})
     user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
-    # Guardar contexto en archivo
     guardar_contexto(user_id, user_contexts[user_id])
 
     return jsonify({"response": respuesta})
+
+@chat_blueprint.route('/save_pdf_interaction', methods=['POST'])
+def save_pdf_interaction():
+    data = request.get_json()
+    user_id = data.get("user_id", "default_user")
+    filename = data.get("filename")
+
+    if not filename:
+        return jsonify({"error": "Nombre de archivo requerido"}), 400
+
+    mensaje = f"Archivo {filename} recibido correctamente"
+    user_contexts.setdefault(user_id, cargar_contexto(user_id))
+    user_contexts[user_id].append({"role": "assistant", "content": mensaje})
+    guardar_contexto(user_id, user_contexts[user_id])
+    return jsonify({"response": mensaje})
