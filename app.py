@@ -4,45 +4,36 @@ from flask_cors import CORS
 from api.chat import chat_blueprint
 from dotenv import load_dotenv
 
-# Inicializar la app
 app = Flask(__name__)
 
-# Cargar variables del entorno
+# Cargar variables de entorno desde .env
 load_dotenv()
 
-# Configurar CORS (origen: tu frontend en Netlify)
-CORS(app, resources={r"/api/*": {"origins": "https://cozy-moonbeam-d256ea.netlify.app"}})
+# CORS: permitir peticiones desde tu frontend en Netlify
+CORS(app, resources={r"/api/*": {
+    "origins": "https://cozy-moonbeam-d256ea.netlify.app"
+}})
 
 # Registrar el blueprint del chatbot
 app.register_blueprint(chat_blueprint, url_prefix='/api')
 
-# Ruta para subir archivos
+# Endpoint opcional para subir archivos (si se usa desde frontend)
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    file = request.files.get("file")
-    user_id = request.form.get("user_id", "default_user")
+    archivo = request.files.get("file")
+    if archivo:
+        ruta = os.path.join("documents", archivo.filename)
+        archivo.save(ruta)
+        return jsonify({"response": f"Archivo {archivo.filename} recibido correctamente"}), 200
+    return jsonify({"error": "No se recibió ningún archivo"}), 400
 
-    if not file:
-        return jsonify({"error": "No se recibió ningún archivo"}), 400
-
-    try:
-        filename = f"{user_id}.pdf"
-        save_path = os.path.join("api", "contextos", filename)
-
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        file.save(save_path)
-
-        return jsonify({"response": f"Archivo {file.filename} recibido correctamente"}), 200
-
-    except Exception as e:
-        return jsonify({"error": f"Error al guardar el archivo: {str(e)}"}), 500
-
-# Verificar rutas cargadas (opcional para debug)
-print("🔍 Rutas activas:")
+# Mostrar las rutas registradas (útil para depuración)
+print("🔍 Rutas registradas:")
 for rule in app.url_map.iter_rules():
-    print(f"📌 {rule.endpoint} --> {rule}")
+    print(f"📍 {rule.endpoint} --> {rule}")
 
-# Iniciar la app (local o Render)
+# Iniciar la app en Render o local
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5000))  # Render usa este puerto dinámico
     app.run(host='0.0.0.0', port=port, debug=True)
+    
