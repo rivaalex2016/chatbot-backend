@@ -12,7 +12,12 @@ load_dotenv()
 
 # Permitir solicitudes CORS desde cualquier origen
 # También puedes restringir a dominios específicos si deseas
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app, resources={r"/api/*": {
+    "origins": [
+        "https://cozy-moonbeam-d256ea.netlify.app",
+        "https://innovug.ug.edu.ec"
+    ]
+}})
 
 # Registrar el blueprint del chatbot en /api/chat
 app.register_blueprint(chat_blueprint, url_prefix='/api')
