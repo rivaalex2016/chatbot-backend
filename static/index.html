@@ -34,14 +34,24 @@
     }
 
     .chat-msg {
+      max-width: 75%;
+      padding: 10px 15px;
       margin-bottom: 10px;
-      line-height: 1.4;
+      border-radius: 18px;
+      word-wrap: break-word;
     }
 
-    .chat-msg strong {
-      display: block;
-      font-size: 0.85rem;
-      color: #555;
+    .from-user {
+      background-color: #d1f1ff;
+      align-self: flex-end;
+      text-align: right;
+      border-bottom-right-radius: 0;
+    }
+
+    .from-bot {
+      background-color: #e9e9eb;
+      align-self: flex-start;
+      border-bottom-left-radius: 0;
     }
 
     #message-form {
@@ -76,7 +86,7 @@
 </head>
 <body>
   <div id="chat-container">
-    <div id="chat-output"></div>
+    <div id="chat-output" class="d-flex flex-column"></div>
 
     <form id="message-form" enctype="multipart/form-data">
       <label for="file" class="icon-btn">📎</label>
@@ -95,10 +105,10 @@
     const form = document.getElementById("message-form");
     const botSound = document.getElementById("bot-sound");
 
-    function agregarMensaje(origen, mensaje) {
+    function agregarMensaje(origen, mensaje, clase) {
       const div = document.createElement("div");
-      div.className = "chat-msg";
-      div.innerHTML = `<strong>${origen}:</strong> ${mensaje}`;
+      div.className = `chat-msg ${clase}`;
+      div.innerHTML = `<strong>${origen}:</strong><br>${mensaje}`;
       chatOutput.appendChild(div);
       chatOutput.scrollTop = chatOutput.scrollHeight;
     }
@@ -123,8 +133,8 @@
         }
       }
 
-      agregarMensaje("Tú", message);
-      agregarMensaje("INNOVUG", "<em>Escribiendo...</em>");
+      agregarMensaje("Tú", message, "from-user");
+      agregarMensaje("INNOVUG", "<em>Escribiendo...</em>", "from-bot");
       messageInput.value = "";
       fileInput.value = "";
 
@@ -135,15 +145,15 @@
         });
 
         const data = await response.json();
-        const msgs = chatOutput.getElementsByTagName("div");
-        if (msgs.length && msgs[msgs.length - 1].innerHTML.includes("Escribiendo")) {
-          msgs[msgs.length - 1].remove();
+        const mensajes = chatOutput.getElementsByClassName("chat-msg");
+        if (mensajes.length && mensajes[mensajes.length - 1].innerHTML.includes("Escribiendo")) {
+          mensajes[mensajes.length - 1].remove();
         }
 
-        agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor");
+        agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor", "from-bot");
         botSound.play();
       } catch (error) {
-        agregarMensaje("Error", error.message);
+        agregarMensaje("Error", error.message, "from-bot");
       }
     });
 
