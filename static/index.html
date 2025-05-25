@@ -25,11 +25,11 @@
     </div>
   </div>
 
-  <!-- 🔊 Sonido al enviar -->
-  <audio id="send-sound" src="https://notificationsounds.com/storage/sounds/file-sounds-1157-pristine.mp3"></audio>
+  <!-- 🔊 Sonido de respuesta del bot -->
+  <audio id="bot-sound" src="respuesta.mp3" preload="auto"></audio>
 
   <script>
-    const sound = document.getElementById("send-sound");
+    const botSound = document.getElementById("bot-sound");
 
     function agregarMensaje(origen, mensaje) {
       const contenedor = document.getElementById("chat-output");
@@ -61,10 +61,6 @@
         }
       }
 
-      // 🔊 reproducir sonido
-      sound.play();
-
-      // 💬 mostrar "Escribiendo..."
       agregarMensaje("INNOVUG", "<em>Escribiendo...</em>");
 
       try {
@@ -79,7 +75,8 @@
         }
 
         const data = await response.json();
-        // Eliminar "Escribiendo..."
+
+        // Quitar mensaje "Escribiendo..."
         const mensajes = document.getElementById("chat-output").getElementsByTagName("div");
         if (mensajes.length > 0 && mensajes[mensajes.length - 1].innerText.includes("Escribiendo...")) {
           mensajes[mensajes.length - 1].remove();
@@ -88,6 +85,10 @@
         agregarMensaje("Tú", message);
         agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor");
 
+        // 🔊 Reproducir sonido al recibir respuesta
+        botSound.play();
+
+        // Limpiar campos
         document.getElementById("message").value = "";
         document.getElementById("file").value = "";
       } catch (error) {
