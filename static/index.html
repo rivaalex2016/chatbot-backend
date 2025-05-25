@@ -10,28 +10,22 @@
     #chat-output {
       max-height: 450px;
       overflow-y: auto;
-      display: flex;
-      flex-direction: column;
     }
     .mensaje-usuario {
+      text-align: right;
       background-color: #d1f8d6;
       padding: 8px 12px;
       border-radius: 12px;
+      margin-left: auto;
       max-width: 80%;
-      display: inline-block;
-      text-align: left;
-      word-wrap: break-word;
-      align-self: flex-end;
     }
     .mensaje-bot {
+      text-align: left;
       background-color: #f1f1f1;
       padding: 8px 12px;
       border-radius: 12px;
+      margin-right: auto;
       max-width: 80%;
-      display: inline-block;
-      text-align: left;
-      word-wrap: break-word;
-      align-self: flex-start;
     }
     .preview-container {
       margin-top: 10px;
@@ -133,10 +127,13 @@
 
         const data = await response.json();
 
-        const mensajes = document.getElementById("chat-output").getElementsByTagName("div");
-        if (mensajes.length > 0 && mensajes[mensajes.length - 1].innerHTML.includes("Escribiendo...")) {
-          mensajes[mensajes.length - 1].remove();
-        }
+        const contenedor = document.getElementById("chat-output");
+        const mensajes = contenedor.querySelectorAll(".mensaje-bot");
+        mensajes.forEach(msg => {
+          if (msg.innerHTML.includes("Escribiendo...")) {
+            msg.remove();
+          }
+        });
 
         agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor", "mensaje-bot");
         botSound.play();
