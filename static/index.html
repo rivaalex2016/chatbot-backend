@@ -85,14 +85,20 @@
         agregarMensaje("Tú", message);
         agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor");
 
-        // 🔊 Reproducir sonido al recibir respuesta
         botSound.play();
 
-        // Limpiar campos
         document.getElementById("message").value = "";
         document.getElementById("file").value = "";
       } catch (error) {
         agregarMensaje("Error", error.message);
+      }
+    });
+
+    // ✅ Enviar con Enter (y Shift+Enter para salto de línea)
+    document.getElementById("message").addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById("chat-form").dispatchEvent(new Event("submit"));
       }
     });
   </script>
