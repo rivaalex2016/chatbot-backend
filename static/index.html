@@ -25,44 +25,50 @@
     </div>
   </div>
 
+  <!-- 🔊 Sonido al enviar -->
+  <audio id="send-sound" src="https://notificationsounds.com/storage/sounds/file-sounds-1157-pristine.mp3"></audio>
+
   <script>
-    function agregarMensaje(alguien, mensaje) {
+    const sound = document.getElementById("send-sound");
+
+    function agregarMensaje(origen, mensaje) {
       const contenedor = document.getElementById("chat-output");
-      const nuevoMensaje = document.createElement("div");
-      nuevoMensaje.classList.add("mb-2");
-      nuevoMensaje.innerHTML = `<strong>${alguien}:</strong> ${mensaje}`;
-      contenedor.appendChild(nuevoMensaje);
+      const nuevo = document.createElement("div");
+      nuevo.classList.add("mb-2");
+      nuevo.innerHTML = `<strong>${origen}:</strong> ${mensaje}`;
+      contenedor.appendChild(nuevo);
       contenedor.scrollTop = contenedor.scrollHeight;
     }
 
-    document.getElementById('chat-form').addEventListener('submit', async function (e) {
+    document.getElementById("chat-form").addEventListener("submit", async function (e) {
       e.preventDefault();
-
-      const userId = document.getElementById('user_id').value;
-      const message = document.getElementById('message').value;
-      const fileInput = document.getElementById('file');
+      const userId = document.getElementById("user_id").value;
+      const message = document.getElementById("message").value;
+      const fileInput = document.getElementById("file");
       const file = fileInput.files[0];
-
       const formData = new FormData();
+
       formData.append("user_id", userId);
       formData.append("message", message);
 
       if (file) {
         const ext = file.name.split('.').pop().toLowerCase();
-        if (ext === "pdf") {
-          formData.append("pdf", file);
-        } else if (ext === "xlsx") {
-          formData.append("xlsx", file);
-        } else if (ext === "csv") {
-          formData.append("csv", file);
+        if (["pdf", "xlsx", "csv"].includes(ext)) {
+          formData.append(ext, file);
         } else {
           alert("Solo se permiten archivos PDF, XLSX o CSV.");
           return;
         }
       }
 
+      // 🔊 reproducir sonido
+      sound.play();
+
+      // 💬 mostrar "Escribiendo..."
+      agregarMensaje("Chatbot", "<em>Escribiendo...</em>");
+
       try {
-        const response = await fetch("/api/chat", {
+        const response = await fetch("https://chatbot-backend-nqls.onrender.com/api/chat", {
           method: "POST",
           body: formData
         });
@@ -73,6 +79,11 @@
         }
 
         const data = await response.json();
+        // Eliminar "Escribiendo..."
+        const mensajes = document.getElementById("chat-output").getElementsByTagName("div");
+        if (mensajes.length > 0 && mensajes[mensajes.length - 1].innerText.includes("Escribiendo...")) {
+          mensajes[mensajes.length - 1].remove();
+        }
 
         agregarMensaje("Tú", message);
         agregarMensaje("Chatbot", data.response || "Sin respuesta del servidor");
