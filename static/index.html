@@ -11,22 +11,29 @@
       max-height: 450px;
       overflow-y: auto;
     }
+
     .mensaje-usuario {
-      text-align: right;
       background-color: #d1f8d6;
       padding: 8px 12px;
       border-radius: 12px;
       margin-left: auto;
+      display: inline-block;
+      word-wrap: break-word;
       max-width: 80%;
+      margin-top: 6px;
     }
+
     .mensaje-bot {
-      text-align: left;
       background-color: #f1f1f1;
       padding: 8px 12px;
       border-radius: 12px;
       margin-right: auto;
+      display: inline-block;
+      word-wrap: break-word;
       max-width: 80%;
+      margin-top: 6px;
     }
+
     .preview-container {
       margin-top: 10px;
       max-height: 250px;
@@ -68,7 +75,7 @@
 
     function agregarMensaje(origen, mensaje, clase) {
       const div = document.createElement("div");
-      div.className = clase + " my-2";
+      div.className = clase;
       div.innerHTML = `<div>${mensaje}</div>`;
       document.getElementById("chat-output").appendChild(div);
       document.getElementById("chat-output").scrollTop = document.getElementById("chat-output").scrollHeight;
@@ -117,7 +124,11 @@
       }
 
       agregarMensaje("Tú", message, "mensaje-usuario");
-      agregarMensaje("INNOVUG", "<em>Escribiendo...</em>", "mensaje-bot");
+      const escribiendo = document.createElement("div");
+      escribiendo.className = "mensaje-bot escribiendo";
+      escribiendo.innerHTML = "<em>Escribiendo...</em>";
+      document.getElementById("chat-output").appendChild(escribiendo);
+      document.getElementById("chat-output").scrollTop = document.getElementById("chat-output").scrollHeight;
 
       try {
         const response = await fetch("https://chatbot-backend-nqls.onrender.com/api/chat", {
@@ -127,13 +138,8 @@
 
         const data = await response.json();
 
-        const contenedor = document.getElementById("chat-output");
-        const mensajes = contenedor.querySelectorAll(".mensaje-bot");
-        mensajes.forEach(msg => {
-          if (msg.innerHTML.includes("Escribiendo...")) {
-            msg.remove();
-          }
-        });
+        const escribiendoEl = document.querySelector(".escribiendo");
+        if (escribiendoEl) escribiendoEl.remove();
 
         agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor", "mensaje-bot");
         botSound.play();
