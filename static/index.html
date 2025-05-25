@@ -11,29 +11,24 @@
       max-height: 450px;
       overflow-y: auto;
     }
-
     .mensaje-usuario {
       background-color: #d1f8d6;
       padding: 8px 12px;
       border-radius: 12px;
       margin-left: auto;
-      display: inline-block;
-      word-wrap: break-word;
       max-width: 80%;
-      margin-top: 6px;
+      word-wrap: break-word;
+      margin-top: 8px;
     }
-
     .mensaje-bot {
       background-color: #f1f1f1;
       padding: 8px 12px;
       border-radius: 12px;
       margin-right: auto;
-      display: inline-block;
-      word-wrap: break-word;
       max-width: 80%;
-      margin-top: 6px;
+      word-wrap: break-word;
+      margin-top: 8px;
     }
-
     .preview-container {
       margin-top: 10px;
       max-height: 250px;
@@ -73,10 +68,10 @@
     const botSound = document.getElementById("bot-sound");
     const preview = document.getElementById("preview-container");
 
-    function agregarMensaje(origen, mensaje, clase) {
+    function agregarMensaje(mensaje, clase) {
       const div = document.createElement("div");
       div.className = clase;
-      div.innerHTML = `<div>${mensaje}</div>`;
+      div.innerHTML = mensaje;
       document.getElementById("chat-output").appendChild(div);
       document.getElementById("chat-output").scrollTop = document.getElementById("chat-output").scrollHeight;
     }
@@ -103,13 +98,14 @@
 
     document.getElementById("chat-form").addEventListener("submit", async function (e) {
       e.preventDefault();
+
       const userId = document.getElementById("user_id").value.trim();
       const message = document.getElementById("message").value.trim();
       const fileInput = document.getElementById("file");
       const file = fileInput.files[0];
       const formData = new FormData();
 
-      if (!message) return;
+      if (!userId || !message) return;
 
       formData.append("user_id", userId);
       formData.append("message", message);
@@ -123,12 +119,13 @@
         }
       }
 
-      agregarMensaje("Tú", message, "mensaje-usuario");
+      agregarMensaje(`<strong>Tú:</strong> ${message}`, "mensaje-usuario");
+
       const escribiendo = document.createElement("div");
-      escribiendo.className = "mensaje-bot escribiendo";
+      escribiendo.className = "mensaje-bot";
+      escribiendo.id = "escribiendo";
       escribiendo.innerHTML = "<em>Escribiendo...</em>";
       document.getElementById("chat-output").appendChild(escribiendo);
-      document.getElementById("chat-output").scrollTop = document.getElementById("chat-output").scrollHeight;
 
       try {
         const response = await fetch("https://chatbot-backend-nqls.onrender.com/api/chat", {
@@ -138,17 +135,17 @@
 
         const data = await response.json();
 
-        const escribiendoEl = document.querySelector(".escribiendo");
-        if (escribiendoEl) escribiendoEl.remove();
+        const escribiendoDiv = document.getElementById("escribiendo");
+        if (escribiendoDiv) escribiendoDiv.remove();
 
-        agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor", "mensaje-bot");
+        agregarMensaje(`<strong>INNOVUG:</strong> ${data.response || "Sin respuesta del servidor"}`, "mensaje-bot");
         botSound.play();
 
         document.getElementById("message").value = "";
         document.getElementById("file").value = "";
         preview.innerHTML = "";
       } catch (error) {
-        agregarMensaje("Error", error.message, "mensaje-bot");
+        agregarMensaje(`<strong>Error:</strong> ${error.message}`, "mensaje-bot");
       }
     });
 
