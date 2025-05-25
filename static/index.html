@@ -5,138 +5,119 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Chatbot Innovug</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
   <style>
-    body {
-      background-color: #f0f2f5;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      margin: 0;
-    }
-
-    #chat-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      max-width: 600px;
-      margin: auto;
-      border: 1px solid #ccc;
-      background: #fff;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
     #chat-output {
-      padding: 15px;
+      max-height: 450px;
       overflow-y: auto;
-      flex-grow: 1;
     }
-
-    .chat-msg {
-      max-width: 75%;
-      padding: 10px 15px;
-      margin-bottom: 10px;
-      border-radius: 18px;
-      word-wrap: break-word;
-    }
-
-    .from-user {
-      background-color: #d1f1ff;
-      align-self: flex-end;
+    .mensaje-usuario {
       text-align: right;
-      border-bottom-right-radius: 0;
+      background-color: #d1f8d6;
+      padding: 8px 12px;
+      border-radius: 12px;
+      margin-left: auto;
+      max-width: 80%;
     }
-
-    .from-bot {
-      background-color: #e9e9eb;
-      align-self: flex-start;
-      border-bottom-left-radius: 0;
+    .mensaje-bot {
+      text-align: left;
+      background-color: #f1f1f1;
+      padding: 8px 12px;
+      border-radius: 12px;
+      margin-right: auto;
+      max-width: 80%;
     }
-
-    #message-form {
-      display: flex;
-      align-items: center;
-      padding: 10px;
-      border-top: 1px solid #ddd;
-      background: #f9f9f9;
-    }
-
-    #message {
-      flex: 1;
-      resize: none;
-      border-radius: 20px;
-      border: 1px solid #ccc;
-      padding: 10px 15px;
-      margin: 0 10px;
-    }
-
-    #file {
-      display: none;
-    }
-
-    .icon-btn {
-      background: none;
-      border: none;
-      font-size: 1.5rem;
-      cursor: pointer;
-      color: #007bff;
+    .preview-container {
+      margin-top: 10px;
+      max-height: 250px;
+      overflow: auto;
     }
   </style>
 </head>
-<body>
-  <div id="chat-container">
-    <div id="chat-output" class="d-flex flex-column"></div>
+<body class="bg-light">
+  <div class="container mt-3">
+    <div class="card shadow">
+      <div class="card-body d-flex flex-column" style="height: 90vh;">
+        <h4 class="text-center mb-3">🤖 Chatbot Innovug</h4>
 
-    <form id="message-form" enctype="multipart/form-data">
-      <label for="file" class="icon-btn">📎</label>
-      <input type="file" id="file" name="file" />
-      <textarea id="message" rows="1" placeholder="Escribe un mensaje..." required></textarea>
-      <button type="submit" class="icon-btn">🕊️</button>
-    </form>
+        <div id="chat-output" class="flex-grow-1 border rounded p-3 bg-white mb-3"></div>
+
+        <div class="preview-container" id="preview-container"></div>
+
+        <form id="chat-form" class="d-flex gap-2 align-items-center" enctype="multipart/form-data">
+          <input type="text" id="user_id" class="form-control" placeholder="ID" required style="max-width: 80px;">
+          <label for="file" class="btn btn-outline-secondary mb-0">
+            <i class="bi bi-paperclip"></i>
+          </label>
+          <input type="file" id="file" name="file" class="d-none" />
+          <input type="text" id="message" class="form-control" placeholder="Escribe un mensaje..." required />
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send-fill"></i>
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 
+  <!-- 🔊 Sonido respuesta bot -->
   <audio id="bot-sound" src="respuesta.mp3" preload="auto"></audio>
 
   <script>
-    const chatOutput = document.getElementById("chat-output");
-    const messageInput = document.getElementById("message");
-    const fileInput = document.getElementById("file");
-    const form = document.getElementById("message-form");
     const botSound = document.getElementById("bot-sound");
+    const preview = document.getElementById("preview-container");
 
     function agregarMensaje(origen, mensaje, clase) {
       const div = document.createElement("div");
-      div.className = `chat-msg ${clase}`;
-      div.innerHTML = `<strong>${origen}:</strong><br>${mensaje}`;
-      chatOutput.appendChild(div);
-      chatOutput.scrollTop = chatOutput.scrollHeight;
+      div.className = clase + " my-2";
+      div.innerHTML = `<div>${mensaje}</div>`;
+      document.getElementById("chat-output").appendChild(div);
+      document.getElementById("chat-output").scrollTop = document.getElementById("chat-output").scrollHeight;
     }
 
-    form.addEventListener("submit", async function (e) {
+    document.getElementById("file").addEventListener("change", function () {
+      preview.innerHTML = "";
+      const file = this.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (ext === "pdf") {
+        const fileURL = URL.createObjectURL(file);
+        const iframe = document.createElement("iframe");
+        iframe.src = fileURL;
+        iframe.width = "100%";
+        iframe.height = "250";
+        iframe.classList.add("rounded");
+        preview.appendChild(iframe);
+      } else {
+        const p = document.createElement("p");
+        p.textContent = "Archivo listo para enviar: " + file.name;
+        preview.appendChild(p);
+      }
+    });
+
+    document.getElementById("chat-form").addEventListener("submit", async function (e) {
       e.preventDefault();
-      const message = messageInput.value.trim();
+      const userId = document.getElementById("user_id").value.trim();
+      const message = document.getElementById("message").value.trim();
+      const fileInput = document.getElementById("file");
+      const file = fileInput.files[0];
+      const formData = new FormData();
+
       if (!message) return;
 
-      const formData = new FormData();
-      formData.append("user_id", "web-user");
+      formData.append("user_id", userId);
       formData.append("message", message);
-
-      const file = fileInput.files[0];
       if (file) {
         const ext = file.name.split('.').pop().toLowerCase();
         if (["pdf", "xlsx", "csv"].includes(ext)) {
           formData.append(ext, file);
         } else {
-          alert("Solo PDF, XLSX o CSV");
+          alert("Solo se permiten archivos PDF, XLSX o CSV.");
           return;
         }
       }
 
-      agregarMensaje("Tú", message, "from-user");
-      agregarMensaje("INNOVUG", "<em>Escribiendo...</em>", "from-bot");
-      messageInput.value = "";
-      fileInput.value = "";
+      agregarMensaje("Tú", message, "mensaje-usuario");
+      agregarMensaje("INNOVUG", "<em>Escribiendo...</em>", "mensaje-bot");
 
       try {
         const response = await fetch("https://chatbot-backend-nqls.onrender.com/api/chat", {
@@ -145,23 +126,28 @@
         });
 
         const data = await response.json();
-        const mensajes = chatOutput.getElementsByClassName("chat-msg");
-        if (mensajes.length && mensajes[mensajes.length - 1].innerHTML.includes("Escribiendo")) {
+
+        const mensajes = document.getElementById("chat-output").getElementsByTagName("div");
+        if (mensajes.length > 0 && mensajes[mensajes.length - 1].innerHTML.includes("Escribiendo...")) {
           mensajes[mensajes.length - 1].remove();
         }
 
-        agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor", "from-bot");
+        agregarMensaje("INNOVUG", data.response || "Sin respuesta del servidor", "mensaje-bot");
         botSound.play();
+
+        document.getElementById("message").value = "";
+        document.getElementById("file").value = "";
+        preview.innerHTML = "";
       } catch (error) {
-        agregarMensaje("Error", error.message, "from-bot");
+        agregarMensaje("Error", error.message, "mensaje-bot");
       }
     });
 
     // Enviar con Enter
-    messageInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" && !e.shiftKey) {
+    document.getElementById("message").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
         e.preventDefault();
-        form.dispatchEvent(new Event("submit"));
+        document.getElementById("chat-form").dispatchEvent(new Event("submit"));
       }
     });
   </script>
