@@ -1,10 +1,75 @@
-<!-- ... mismo <head> sin cambios ... -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asistente Virtual INNOVUG</title>
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
+  <style>
+    #chat-output {
+      max-height: 450px;
+      overflow-y: auto;
+    }
 
+    .mensaje-usuario {
+      background-color: #d1f8d6;
+      padding: 8px 12px;
+      border-radius: 12px;
+      max-width: 80%;
+      word-wrap: break-word;
+      margin-top: 8px;
+      display: inline-block;
+      align-self: flex-end;
+      text-align: left;
+    }
+
+    .mensaje-bot {
+      background-color: #f1f1f1;
+      padding: 8px 12px;
+      border-radius: 12px;
+      max-width: 80%;
+      word-wrap: break-word;
+      margin-top: 8px;
+      display: inline-block;
+      align-self: flex-start;
+      text-align: left;
+    }
+
+    .preview-container {
+      margin-top: 10px;
+      max-height: 250px;
+      overflow: auto;
+    }
+
+    .card {
+      border-radius: 20px;
+    }
+
+    #chat-form input,
+    #chat-form button {
+      border-radius: 12px;
+    }
+
+    @media (max-width: 768px) {
+      #chat-form {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      #user_id {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
 <body class="bg-light">
   <div class="container mt-3">
     <div class="card shadow">
       <div class="card-body d-flex flex-column" style="height: 90vh;">
         
+        <!-- Encabezado mejorado -->
         <div class="text-center mb-4">
           <h4 class="fw-bold" style="font-size: 1.5rem;">
             <i class="bi bi-robot me-2 text-primary"></i>Asistente Virtual <span class="text-primary">INNOVUG</span>
@@ -15,6 +80,7 @@
         </div>
 
         <div id="chat-output" class="flex-grow-1 border rounded p-3 bg-white mb-3 d-flex flex-column gap-2"></div>
+
         <div class="preview-container" id="preview-container"></div>
 
         <form id="chat-form" class="d-flex gap-2 align-items-center" enctype="multipart/form-data">
@@ -32,6 +98,7 @@
     </div>
   </div>
 
+  <!-- 🔊 Sonido respuesta bot -->
   <audio id="bot-sound" src="respuesta.mp3" preload="auto"></audio>
 
   <script>
@@ -93,6 +160,7 @@
         return;
       }
 
+      // limpiar mensaje y archivo de inmediato
       messageInput.value = "";
       fileInput.value = "";
       preview.innerHTML = "";
@@ -109,11 +177,12 @@
         }
       }
 
+      // desactivar botón de enviar con spinner
       sendButton.disabled = true;
       sendButton.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
 
-      agregarMensaje(message, "mensaje-usuario");
-      if (file) agregarMensaje(`Archivo enviado: ${file.name}`, "mensaje-usuario");
+      agregarMensaje(`<strong>Tú:</strong> ${message}`, "mensaje-usuario");
+      if (file) agregarMensaje(`<strong>Tú (archivo):</strong> ${file.name}`, "mensaje-usuario");
 
       const escribiendo = document.createElement("div");
       escribiendo.className = "mensaje-bot d-flex flex-column";
@@ -132,13 +201,13 @@
         const escribiendoDiv = document.getElementById("escribiendo");
         if (escribiendoDiv) escribiendoDiv.remove();
 
-        agregarMensaje(data.response || "Sin respuesta del servidor", "mensaje-bot");
+        agregarMensaje(`<strong>INNOVUG:</strong> ${data.response || "Sin respuesta del servidor"}`, "mensaje-bot");
 
         if (botSound && botSound.play) {
           botSound.play().catch(e => console.log("Sonido no reproducido:", e));
         }
       } catch (error) {
-        agregarMensaje(error.message, "mensaje-bot");
+        agregarMensaje(`<strong>Error:</strong> ${error.message}`, "mensaje-bot");
       } finally {
         sendButton.disabled = false;
         sendButton.innerHTML = `<i class="bi bi-send-fill"></i>`;
