@@ -65,17 +65,17 @@
           <p class="text-muted mb-0">Tu guía para el emprendimiento y la innovación</p>
         </div>
 
-        <!-- Campo de ID encima del chat -->
+        <!-- Campo de Cédula obligatorio encima del chat -->
         <div class="mb-2">
-          <input type="text" id="user-id" class="form-control form-control-sm w-50 mx-auto" placeholder="ID de usuario">
+          <input type="text" id="user-id" class="form-control form-control-sm w-50 mx-auto" placeholder="No. Cédula" maxlength="10" pattern="\\d{10}" required>
         </div>
 
         <div id="chat-output" class="flex-grow-1 border rounded p-3 bg-white mb-2 d-flex flex-column gap-2"></div>
 
         <div class="preview-container" id="preview-container"></div>
 
-        <form id="chat-form" class="d-flex align-items-center gap-2 mt-2">
-          <input type="text" class="form-control form-control-sm" id="user-input" placeholder="Escribe un mensaje..." />
+        <form id="chat-form" class="d-flex justify-content-center align-items-center gap-2 mt-2">
+          <input type="text" class="form-control form-control-sm w-50" id="user-input" placeholder="Mensaje..." />
           <label for="file-input" class="btn btn-outline-secondary btn-sm mb-0">
             <i class="bi bi-paperclip"></i>
           </label>
@@ -100,7 +100,12 @@
       e.preventDefault();
       const message = userInput.value.trim();
       const file = fileInput.files[0];
-      const userId = userIdInput.value.trim() || "usuario";
+      const userId = userIdInput.value.trim();
+
+      if (!userId || !/^\d{10}$/.test(userId)) {
+        alert("Por favor ingresa un No. Cédula válido de 10 dígitos.");
+        return;
+      }
       if (!message && !file) return;
 
       if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
