@@ -165,6 +165,11 @@ def chat():
         user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
         respuesta = openai_IA(user_contexts[user_id])
+        user_contexts[user_id].append({'role': 'assistant', 'content': respuesta})        # Imprimir historial del usuario en consola
+        print(f"\n--- Historial de {user_id} ---")
+        for mensaje in user_contexts[user_id]:
+            print(f"[{mensaje['role'].upper()}] {mensaje['content'][:100]}...")
+        print("--- Fin del historial ---\n")
         return jsonify({"response": respuesta})
 
     except Exception as e:
