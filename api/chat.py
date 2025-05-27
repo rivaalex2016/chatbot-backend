@@ -1,10 +1,10 @@
-# chat.py actualizado para aceptar PDF, CSV, XLSX y título desde /api/chat
+# chat.py actualizado para conectar PostgreSQL y guardar historial
 import pdfplumber
 import logging
 import openai
 import os
 import re
-
+import psycopg2
 import pandas as pd
 from io import BytesIO
 from dotenv import load_dotenv
@@ -16,11 +16,17 @@ load_dotenv()
 MODEL = os.getenv('MODEL')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+# Configurar la conexión a PostgreSQL
+conn = psycopg2.connect(
+    dbname=os.getenv("DB_NAME"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    host=os.getenv("DB_HOST"),
+    port=os.getenv("DB_PORT")
+)
+
 logging.basicConfig(level=logging.INFO)
 openai.api_key = OPENAI_API_KEY
-
-user_contexts = {}
-MAX_CONTEXT_LENGTH = 20
 
 REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
 REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
@@ -105,6 +111,22 @@ def load_bad_words():
     with open(path, 'r', encoding='utf-8') as f:
         return [line.strip() for line in f.readlines()]
 
+def guardar_mensaje(identity, role, content):
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO chat_history (identity, role, content) VALUES (%s, %s, %s)",
+            (identity, role, content)
+        )
+        conn.commit()
+
+def cargar_historial(identity, limite=20):
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT role, content FROM chat_history WHERE identity = %s ORDER BY timestamp ASC LIMIT %s",
+            (identity, limite)
+        )
+        return [{'role': row[0], 'content': row[1]} for row in cur.fetchall()]
+
 chat_blueprint = Blueprint('chat', __name__)
 
 @chat_blueprint.route('/chat', methods=['POST'])
@@ -124,11 +146,12 @@ def chat():
             user_message = "Analiza este archivo, por favor."
 
         if user_id not in user_contexts:
-            user_contexts[user_id] = []
+            historial = cargar_historial(user_id)
+            user_contexts[user_id] = historial
             try:
                 with open(os.path.join(os.path.dirname(__file__), '../rules/rule_chat.txt'), 'r', encoding='utf-8') as f:
                     reglas = f.read().strip()
-                    user_contexts[user_id].append({'role': 'system', 'content': reglas})
+                    user_contexts[user_id].insert(0, {'role': 'system', 'content': reglas})
             except Exception:
                 return jsonify({"error": "No se pudieron cargar las reglas"}), 500
 
@@ -165,15 +188,14 @@ def chat():
             user_contexts[user_id].append({'role': 'user', 'content': f"Título:\n{title}"})
 
         user_contexts[user_id].append({'role': 'user', 'content': user_message})
+        guardar_mensaje(user_id, 'user', user_message)
+
         user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
         respuesta = openai_IA(user_contexts[user_id])
         user_contexts[user_id].append({'role': 'assistant', 'content': respuesta})
+        guardar_mensaje(user_id, 'assistant', respuesta)
 
-        print(f"\n--- Historial de {user_id} ---")
-        for mensaje in user_contexts[user_id]:
-            print(f"[{mensaje['role'].upper()}] {mensaje['content'][:100]}...")
-        print("--- Fin del historial ---\n")
         return jsonify({"response": respuesta})
 
     except Exception as e:

@@ -4,13 +4,13 @@ from flask_cors import CORS
 from api.chat import chat_blueprint
 from dotenv import load_dotenv
 
-# Crear la app de Flask
-app = Flask(__name__, static_folder='static')
-
-# Cargar variables del entorno desde el archivo .env
+# Cargar variables del entorno
 load_dotenv()
 
-# CORS: permitir solicitudes desde dominios específicos (WordPress y localhost para pruebas)
+# Crear la app Flask
+app = Flask(__name__, static_folder='static')
+
+# Configurar CORS para dominios específicos
 CORS(app, resources={r"/api/*": {
     "origins": [
         "https://innovug.ug.edu.ec",  # WordPress oficial
@@ -19,10 +19,10 @@ CORS(app, resources={r"/api/*": {
     ]
 }})
 
-# Registrar el blueprint del chatbot
+# Registrar el blueprint para rutas de /api/chat
 app.register_blueprint(chat_blueprint, url_prefix='/api')
 
-# Ruta para recibir archivos desde el frontend
+# Ruta para subir archivos PDF, CSV, XLSX desde frontend
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     archivo = request.files.get("file")
@@ -33,20 +33,17 @@ def upload_file():
         return jsonify({"response": f"Archivo {archivo.filename} recibido correctamente"}), 200
     return jsonify({"error": "No se recibió ningún archivo"}), 400
 
-# Ruta para servir el index.html desde la carpeta static/
+# Ruta principal: sirve el index.html
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
 
-# Mostrar rutas registradas para depuración
+# Mostrar rutas activas para depuración
 print("🔍 Rutas registradas:")
 for rule in app.url_map.iter_rules():
     print(f"📍 {rule.endpoint} --> {rule}")
 
-# Ejecutar la aplicación localmente o en Render
+# Iniciar servidor Flask (Render detecta el puerto desde la variable de entorno PORT)
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))  # Render inyecta el puerto en PORT
+    port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
-
-
-
