@@ -7,81 +7,7 @@
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
-  <style>
-    #chat-output {
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    .mensaje-usuario, .mensaje-bot {
-      padding: 8px 12px;
-      border-radius: 12px;
-      max-width: 70%;
-      word-wrap: break-word;
-      margin-top: 8px;
-      text-align: left;
-      display: inline-block;
-    }
-    .mensaje-usuario {
-      background-color: #d1f8d6;
-      align-self: flex-end;
-      margin-left: auto;
-    }
-    .mensaje-bot {
-      background-color: #f1f1f1;
-      align-self: flex-start;
-      margin-right: auto;
-    }
-    .timestamp {
-      font-size: 0.75rem;
-      font-style: italic;
-      display: block;
-      margin-top: 4px;
-      color: #6c757d;
-    }
-    .mensaje-usuario .timestamp {
-      text-align: right !important;
-    }
-    .fade-in {
-      animation: fadeIn 0.4s ease-in-out;
-    }
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    .preview-container {
-      margin-top: 10px;
-      max-height: 300px;
-      overflow: auto;
-    }
-    #pdf-preview embed {
-      width: 100%;
-      height: 300px;
-      border-radius: 8px;
-    }
-    .card {
-      border-radius: 20px;
-    }
-    #chat-form input,
-    #chat-form button {
-      border-radius: 10px;
-      min-height: 38px;
-    }
-    #pdf-preview {
-      display: none;
-    }
-    @media (max-width: 768px) {
-      #chat-form {
-        flex-direction: column;
-        gap: 0.5rem;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="bg-light">
   <audio id="bot-audio" src="/static/respuesta.mp3"></audio>
@@ -105,14 +31,17 @@
           <div id="pdf-preview"></div>
         </div>
 
-        <form id="chat-form" class="d-flex justify-content-between align-items-center mt-2 w-100">
-          <input type="text" class="form-control form-control-sm me-2 flex-grow-1" id="user-input" placeholder="Mensaje..." />
-          <div class="d-flex align-items-center gap-2">
-            <label for="file-input" class="btn btn-outline-secondary btn-sm mb-0">
+        <form id="chat-form" class="mt-2 w-100">
+          <div class="chat-input-wrapper">
+            <input type="text" id="user-input" placeholder="Mensaje..." />
+            <button type="button" class="remove-file" id="remove-file" title="Eliminar archivo">
+              <i class="bi bi-x-circle-fill"></i>
+            </button>
+            <label for="file-input">
               <i class="bi bi-paperclip"></i>
             </label>
             <input type="file" id="file-input" class="d-none" accept=".pdf,.csv,.xlsx" />
-            <button type="submit" class="btn btn-primary btn-sm">
+            <button type="submit">
               <i class="bi bi-send"></i>
             </button>
           </div>
@@ -121,93 +50,6 @@
     </div>
   </div>
 
-  <script>
-    const chatOutput = document.getElementById("chat-output");
-    const chatForm = document.getElementById("chat-form");
-    const userInput = document.getElementById("user-input");
-    const fileInput = document.getElementById("file-input");
-    const userIdInput = document.getElementById("user-id");
-    const pdfPreview = document.getElementById("pdf-preview");
-    const botAudio = document.getElementById("bot-audio");
-
-    fileInput.addEventListener("change", () => {
-      const file = fileInput.files[0];
-      if (file && file.type === "application/pdf") {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          pdfPreview.style.display = "block";
-          pdfPreview.innerHTML = `<embed src="${e.target.result}" type="application/pdf" />`;
-        };
-        reader.readAsDataURL(file);
-      } else {
-        pdfPreview.style.display = "none";
-        pdfPreview.innerHTML = "";
-      }
-    });
-
-    chatForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      let message = userInput.value.trim();
-      const file = fileInput.files[0];
-      const userId = userIdInput.value.trim();
-
-      if (!userId || !/^\d{10}$/.test(userId)) {
-        alert("Por favor ingresa un No. Cédula válido de 10 dígitos.");
-        return;
-      }
-      if (!message && !file) return;
-
-      // Mensaje automático si solo se carga archivo
-      if (!message && file) {
-        message = "Analiza este archivo, por favor.";
-      }
-
-      if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
-      if (file) addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
-
-      userInput.value = "";
-      fileInput.value = "";
-      pdfPreview.innerHTML = "";
-      pdfPreview.style.display = "none";
-
-      const formData = new FormData();
-      formData.append("message", message);
-      formData.append("user_id", userId);
-      if (file) {
-        const ext = file.name.split('.').pop().toLowerCase();
-        if (ext === "pdf") formData.append("pdf", file);
-        else if (ext === "csv") formData.append("csv", file);
-        else if (ext === "xlsx") formData.append("xlsx", file);
-      }
-
-      const escribiendo = document.createElement("div");
-      escribiendo.className = "mensaje-bot fade-in";
-      escribiendo.id = "escribiendo";
-      escribiendo.innerHTML = "<em>Escribiendo...</em>";
-      chatOutput.appendChild(escribiendo);
-
-      try {
-        const response = await fetch("https://chatbot-backend-nqls.onrender.com/api/chat", {
-          method: "POST",
-          body: formData
-        });
-        const data = await response.json();
-        document.getElementById("escribiendo").remove();
-        addMessage(`INNOVUG: ${data.response}`, "mensaje-bot");
-        botAudio.play();
-      } catch (err) {
-        addMessage(`Error: ${err.message}`, "mensaje-bot");
-      }
-    });
-
-    function addMessage(text, clase) {
-      const div = document.createElement("div");
-      div.className = clase + " fade-in";
-      const hora = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      div.innerHTML = `${text}<span class='timestamp'>${hora}</span>`;
-      chatOutput.appendChild(div);
-      chatOutput.scrollTop = chatOutput.scrollHeight;
-    }
-  </script>
+  <script src="/static/main.js"></script>
 </body>
 </html>

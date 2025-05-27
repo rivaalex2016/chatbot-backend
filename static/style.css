@@ -1,0 +1,111 @@
+#chat-output {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.mensaje-usuario,
+.mensaje-bot {
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 70%;
+  word-wrap: break-word;
+  margin-top: 8px;
+  text-align: left;
+  display: inline-block;
+}
+.mensaje-usuario {
+  background-color: #d1f8d6;
+  align-self: flex-end;
+  margin-left: auto;
+}
+.mensaje-bot {
+  background-color: #f1f1f1;
+  align-self: flex-start;
+  margin-right: auto;
+}
+.timestamp {
+  font-size: 0.75rem;
+  font-style: italic;
+  display: block;
+  margin-top: 4px;
+  color: #6c757d;
+}
+.mensaje-usuario .timestamp {
+  text-align: right !important;
+}
+.fade-in {
+  animation: fadeIn 0.4s ease-in-out;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.preview-container {
+  margin-top: 10px;
+  max-height: 300px;
+  overflow: auto;
+}
+#pdf-preview embed {
+  width: 100%;
+  height: 300px;
+  border-radius: 8px;
+}
+.card {
+  border-radius: 20px;
+}
+#pdf-preview {
+  display: none;
+}
+.chat-input-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  padding: 4px 6px;
+  position: relative;
+}
+.chat-input-wrapper input[type="text"] {
+  border: none;
+  flex-grow: 1;
+  outline: none;
+}
+.chat-input-wrapper button,
+.chat-input-wrapper label {
+  border: none;
+  background: none;
+  padding: 0 8px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #0d6efd;
+  transition: color 0.2s;
+}
+.chat-input-wrapper button:hover,
+.chat-input-wrapper label:hover {
+  color: #084298;
+}
+.chat-input-wrapper input[type="text"]:not(:placeholder-shown) ~ button {
+  color: #198754;
+}
+.chat-input-wrapper.attached label {
+  color: #dc3545;
+}
+.chat-input-wrapper .remove-file {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #dc3545;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: none;
+}
+.chat-input-wrapper.attached .remove-file {
+  display: block;
+}
