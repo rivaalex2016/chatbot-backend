@@ -1,32 +1,24 @@
-# chat.py actualizado para conectar PostgreSQL y guardar historial
-import pdfplumber
-import logging
-import openai
 import os
 import re
+import logging
+import pdfplumber
+import openai
 import psycopg2
 import pandas as pd
 from io import BytesIO
+from datetime import datetime
 from dotenv import load_dotenv
 from difflib import SequenceMatcher
-from openai.error import RateLimitError
 from flask import Blueprint, request, jsonify
+from openai.error import RateLimitError
 
 load_dotenv()
-MODEL = os.getenv('MODEL')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
-# Configurar la conexión a PostgreSQL
-conn = psycopg2.connect(
-    dbname=os.getenv("DB_NAME"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD"),
-    host=os.getenv("DB_HOST"),
-    port=os.getenv("DB_PORT")
-)
-
-logging.basicConfig(level=logging.INFO)
+MODEL = os.getenv("MODEL")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
+
+user_contexts = {}
+MAX_CONTEXT_LENGTH = 20
 
 REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
 REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
@@ -45,6 +37,43 @@ try:
 except:
     pass
 
+# --- CONEXIÓN A LA BASE DE DATOS ---
+def get_db_connection():
+    return psycopg2.connect(
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT")
+    )
+
+def guardar_mensaje(identity, role, content):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO chat_history (identity, role, content, timestamp) VALUES (%s, %s, %s, %s)",
+                    (identity, role, content, datetime.now()))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"❌ Error guardando mensaje en DB: {e}")
+
+def cargar_historial_por_identity(identity):
+    historial = []
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT role, content FROM chat_history WHERE identity = %s ORDER BY timestamp ASC", (identity,))
+        for row in cur.fetchall():
+            historial.append({"role": row[0], "content": row[1]})
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"❌ Error cargando historial desde DB: {e}")
+    return historial
+
+# --- FUNCIONES DEL CHATBOT ---
 def openai_IA(mensajes, model=MODEL, temperature=0.7):
     try:
         response = openai.ChatCompletion.create(
@@ -111,28 +140,12 @@ def load_bad_words():
     with open(path, 'r', encoding='utf-8') as f:
         return [line.strip() for line in f.readlines()]
 
-def guardar_mensaje(identity, role, content):
-    with conn.cursor() as cur:
-        cur.execute(
-            "INSERT INTO chat_history (identity, role, content) VALUES (%s, %s, %s)",
-            (identity, role, content)
-        )
-        conn.commit()
-
-def cargar_historial(identity, limite=20):
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT role, content FROM chat_history WHERE identity = %s ORDER BY timestamp ASC LIMIT %s",
-            (identity, limite)
-        )
-        return [{'role': row[0], 'content': row[1]} for row in cur.fetchall()]
-
 chat_blueprint = Blueprint('chat', __name__)
 
 @chat_blueprint.route('/chat', methods=['POST'])
 def chat():
     try:
-        user_id = request.form.get("user_id", "default_user")
+        identity = request.form.get("user_id", "default_user")
         user_message = request.form.get("message", "")
         pdf_file = request.files.get("pdf")
         xlsx_file = request.files.get("xlsx")
@@ -145,13 +158,13 @@ def chat():
         if not user_message and (pdf_file or xlsx_file or csv_file):
             user_message = "Analiza este archivo, por favor."
 
-        if user_id not in user_contexts:
-            historial = cargar_historial(user_id)
-            user_contexts[user_id] = historial
+        if identity not in user_contexts:
+            historial_prev = cargar_historial_por_identity(identity)
+            user_contexts[identity] = historial_prev
             try:
                 with open(os.path.join(os.path.dirname(__file__), '../rules/rule_chat.txt'), 'r', encoding='utf-8') as f:
                     reglas = f.read().strip()
-                    user_contexts[user_id].insert(0, {'role': 'system', 'content': reglas})
+                    user_contexts[identity].insert(0, {'role': 'system', 'content': reglas})
             except Exception:
                 return jsonify({"error": "No se pudieron cargar las reglas"}), 500
 
@@ -159,7 +172,8 @@ def chat():
             try:
                 uploaded_text = extract_text_from_pdf(pdf_file)
                 if compare_pdfs(REFERENCE_TEXT, uploaded_text):
-                    user_contexts[user_id].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
+                    user_contexts[identity].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
+                    guardar_mensaje(identity, 'user', uploaded_text)
                 else:
                     return jsonify({"response": "El PDF no cumple con los criterios esperados."})
             except Exception as e:
@@ -168,14 +182,17 @@ def chat():
         if xlsx_file and xlsx_file.filename.endswith(".xlsx"):
             df = pd.read_excel(xlsx_file)
             if compare_files(REFERENCE_DF, df):
-                user_contexts[user_id].append({'role': 'user', 'content': f"XLSX:\n{df.to_string(index=False)}"})
+                content = df.to_string(index=False)
+                user_contexts[identity].append({'role': 'user', 'content': f"XLSX:\n{content}"})
+                guardar_mensaje(identity, 'user', content)
             else:
                 return jsonify({"response": "El archivo XLSX no coincide con la estructura esperada."})
 
         if csv_file and csv_file.filename.endswith(".csv"):
             try:
                 if transform_and_compare(csv_file):
-                    user_contexts[user_id].append({'role': 'user', 'content': f"CSV: Archivo compatible cargado."})
+                    user_contexts[identity].append({'role': 'user', 'content': "CSV: Archivo compatible cargado."})
+                    guardar_mensaje(identity, 'user', "Archivo CSV compatible")
                 else:
                     return jsonify({"response": "El archivo CSV no es válido o no tiene el formato correcto."})
             except Exception as e:
@@ -185,16 +202,17 @@ def chat():
             bad_words = load_bad_words()
             if any(re.search(rf'\b{re.escape(word)}\b', title, re.IGNORECASE) for word in bad_words):
                 return jsonify({"response": "Ese título contiene palabras no permitidas."})
-            user_contexts[user_id].append({'role': 'user', 'content': f"Título:\n{title}"})
+            user_contexts[identity].append({'role': 'user', 'content': f"Título:\n{title}"})
+            guardar_mensaje(identity, 'user', title)
 
-        user_contexts[user_id].append({'role': 'user', 'content': user_message})
-        guardar_mensaje(user_id, 'user', user_message)
+        user_contexts[identity].append({'role': 'user', 'content': user_message})
+        guardar_mensaje(identity, 'user', user_message)
 
-        user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
+        user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
+        respuesta = openai_IA(user_contexts[identity])
 
-        respuesta = openai_IA(user_contexts[user_id])
-        user_contexts[user_id].append({'role': 'assistant', 'content': respuesta})
-        guardar_mensaje(user_id, 'assistant', respuesta)
+        user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
+        guardar_mensaje(identity, 'assistant', respuesta)
 
         return jsonify({"response": respuesta})
 
