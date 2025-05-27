@@ -117,8 +117,11 @@ def chat():
         csv_file = request.files.get("csv")
         title = request.form.get("title")
 
-        if not user_message:
-            return jsonify({"error": "Mensaje requerido"}), 400
+        if not user_message and not (pdf_file or xlsx_file or csv_file):
+            return jsonify({"error": "Se requiere un mensaje o archivo válido"}), 400
+
+        if not user_message and (pdf_file or xlsx_file or csv_file):
+            user_message = "Analiza este archivo, por favor."
 
         if user_id not in user_contexts:
             user_contexts[user_id] = []
@@ -165,7 +168,8 @@ def chat():
         user_contexts[user_id] = user_contexts[user_id][-MAX_CONTEXT_LENGTH:]
 
         respuesta = openai_IA(user_contexts[user_id])
-        user_contexts[user_id].append({'role': 'assistant', 'content': respuesta})        # Imprimir historial del usuario en consola
+        user_contexts[user_id].append({'role': 'assistant', 'content': respuesta})
+
         print(f"\n--- Historial de {user_id} ---")
         for mensaje in user_contexts[user_id]:
             print(f"[{mensaje['role'].upper()}] {mensaje['content'][:100]}...")

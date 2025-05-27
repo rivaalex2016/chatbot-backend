@@ -147,7 +147,7 @@
 
     chatForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const message = userInput.value.trim();
+      let message = userInput.value.trim();
       const file = fileInput.files[0];
       const userId = userIdInput.value.trim();
 
@@ -156,6 +156,11 @@
         return;
       }
       if (!message && !file) return;
+
+      // Mensaje automático si solo se carga archivo
+      if (!message && file) {
+        message = "Analiza este archivo, por favor.";
+      }
 
       if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
       if (file) addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
