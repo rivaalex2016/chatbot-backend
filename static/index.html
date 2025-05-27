@@ -12,27 +12,30 @@
       max-height: 400px;
       overflow-y: auto;
     }
-    .mensaje-usuario {
-      background-color: #d1f8d6;
+    .mensaje-usuario, .mensaje-bot {
       padding: 8px 12px;
       border-radius: 12px;
       max-width: 80%;
       word-wrap: break-word;
       margin-top: 8px;
       display: inline-block;
-      align-self: flex-end;
       text-align: left;
+      position: relative;
+    }
+    .mensaje-usuario {
+      background-color: #d1f8d6;
+      align-self: flex-end;
     }
     .mensaje-bot {
       background-color: #f1f1f1;
-      padding: 8px 12px;
-      border-radius: 12px;
-      max-width: 80%;
-      word-wrap: break-word;
-      margin-top: 8px;
-      display: inline-block;
       align-self: flex-start;
-      text-align: left;
+    }
+    .timestamp {
+      font-size: 0.75rem;
+      font-style: italic;
+      display: block;
+      margin-top: 4px;
+      color: #6c757d;
     }
     .fade-in {
       animation: fadeIn 0.4s ease-in-out;
@@ -182,17 +185,18 @@
         });
         const data = await response.json();
         document.getElementById("escribiendo").remove();
-        addMessage(`INNOVUG: ${data.response}`, "mensaje-bot fade-in");
+        addMessage(`INNOVUG: ${data.response}`, "mensaje-bot");
         botAudio.play();
       } catch (err) {
-        addMessage(`Error: ${err.message}`, "mensaje-bot fade-in");
+        addMessage(`Error: ${err.message}`, "mensaje-bot");
       }
     });
 
     function addMessage(text, clase) {
       const div = document.createElement("div");
       div.className = clase + " fade-in";
-      div.textContent = text;
+      const hora = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      div.innerHTML = `${text}<span class='timestamp'>${hora}</span>`;
       chatOutput.appendChild(div);
       chatOutput.scrollTop = chatOutput.scrollHeight;
     }
