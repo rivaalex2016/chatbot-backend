@@ -37,8 +37,6 @@ try:
 except:
     pass
 
-# Conexión a la base de datos
-
 def get_db_connection():
     return psycopg2.connect(
         dbname=os.getenv("DB_NAME"),
@@ -48,21 +46,19 @@ def get_db_connection():
         port=os.getenv("DB_PORT")
     )
 
-# Guardar historial
-
 def guardar_mensaje(identity, role, content):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("INSERT INTO chat_history (identity, role, content, timestamp) VALUES (%s, %s, %s, %s)",
-                    (identity, role, content, datetime.now()))
+        cur.execute("""
+            INSERT INTO chat_history (identity, role, content, timestamp)
+            VALUES (%s, %s, %s, %s)
+        """, (identity, role, content, datetime.now()))
         conn.commit()
         cur.close()
         conn.close()
     except Exception as e:
         logging.error(f"❌ Error guardando mensaje en DB: {e}")
-
-# Cargar historial
 
 def cargar_historial_por_identity(identity):
     historial = []
@@ -78,68 +74,6 @@ def cargar_historial_por_identity(identity):
         logging.error(f"❌ Error cargando historial desde DB: {e}")
     return historial
 
-# Extraer datos del PDF para llenar la tabla pdf_data
-
-def extraer_datos_pdf(uploaded_text):
-    campos = {
-        'first_name': re.search(r"Nombre:\s*(.+)", uploaded_text),
-        'last_name': re.search(r"Apellido:\s*(.+)", uploaded_text),
-        'faculty': re.search(r"Facultad:\s*(.+)", uploaded_text),
-        'career': re.search(r"Carrera:\s*(.+)", uploaded_text),
-        'phone': re.search(r"Tel[eé]fono:\s*(\d+)", uploaded_text),
-        'email': re.search(r"Correo electr[oó]nico:\s*([\w\.\-@]+)", uploaded_text),
-        'semester': re.search(r"Semestre:\s*(\d+)", uploaded_text),
-        'area': re.search(r"Area de enfoque:\s*(.+)", uploaded_text),
-        'product_description': re.search(r"Descripci[oó]n del producto:\s*(.+)", uploaded_text),
-        'problem_identification': re.search(r"Problema identificado:\s*(.+)", uploaded_text),
-        'innovation_solution': re.search(r"Soluci[oó]n innovadora:\s*(.+)", uploaded_text),
-        'customers': re.search(r"Clientes usuarios:\s*(.+)", uploaded_text),
-        'value_proposition': re.search(r"Propuesta de valor:\s*(.+)", uploaded_text),
-        'channels': re.search(r"Canales:\s*(.+)", uploaded_text),
-        'resources': re.search(r"Recursos necesarios:\s*(.+)", uploaded_text),
-        'estimated_cost': re.search(r"Costo estimado:\s*(.+)", uploaded_text),
-    }
-    return {k: (v.group(1).strip() if v else None) for k, v in campos.items()}
-
-# Insertar o actualizar datos
-
-def guardar_datos_pdf(identity, datos):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO pdf_data (
-                identity, first_name, last_name, faculty, career, phone, email, semester,
-                area, product_description, problem_identification, innovation_solution,
-                customers, value_proposition, channels, resources, estimated_cost, updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (identity) DO UPDATE SET
-                first_name=EXCLUDED.first_name,
-                last_name=EXCLUDED.last_name,
-                faculty=EXCLUDED.faculty,
-                career=EXCLUDED.career,
-                phone=EXCLUDED.phone,
-                email=EXCLUDED.email,
-                semester=EXCLUDED.semester,
-                area=EXCLUDED.area,
-                product_description=EXCLUDED.product_description,
-                problem_identification=EXCLUDED.problem_identification,
-                innovation_solution=EXCLUDED.innovation_solution,
-                customers=EXCLUDED.customers,
-                value_proposition=EXCLUDED.value_proposition,
-                channels=EXCLUDED.channels,
-                resources=EXCLUDED.resources,
-                estimated_cost=EXCLUDED.estimated_cost,
-                updated_at=NOW();
-        """, [identity] + list(datos.values()))
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as e:
-        logging.error(f"❌ Error guardando datos del PDF en DB: {e}")
-
-# Funciones IA
-
 def openai_IA(mensajes, model=MODEL, temperature=0.7):
     try:
         response = openai.ChatCompletion.create(
@@ -149,20 +83,82 @@ def openai_IA(mensajes, model=MODEL, temperature=0.7):
         )
         return response.choices[0].message["content"]
     except RateLimitError:
+        logging.error("Token de OpenAI insuficiente.")
         return "Error: Token de OpenAI insuficiente."
     except Exception as e:
-        return f"Error IA: {e}"
+        logging.error(f"Error en OpenAI: {e}")
+        return "Error procesando la solicitud de la IA."
 
-# PDF text
-
-def extract_text_from_pdf(file) -> str:
+def extract_text_from_pdf(file):
     text = ""
     with pdfplumber.open(file) as pdf:
         for page in pdf.pages:
             text += page.extract_text() or ""
-    return text.strip().lower()
+    return text.strip()
 
-# Blueprint
+def parse_pdf_fields(text):
+    fields = {
+        'first_name': r"Nombres?:\s*(.*)",
+        'last_name': r"Apellidos?:\s*(.*)",
+        'faculty': r"Facultad:\s*(.*)",
+        'career': r"Carrera:\s*(.*)",
+        'phone': r"Tel[eé]fono:\s*(.*)",
+        'email': r"Correo:\s*(.*)",
+        'semester': r"Semestre:\s*(\d+)",
+        'area': r"[\n\r]?[ Á]rea:?\s*(.*)",
+        'product_description': r"Descripci[oó]n del producto/servicio:?\s*(.*)",
+        'problem_identification': r"Identificaci[oó]n del problema que resuelve:?\s*(.*)",
+        'innovation_solution': r"Soluci[oó]n o cambios que genera la innovaci[oó]n:?\s*(.*)",
+        'customers': r"Clientes / Usuarios:?\s*(.*)",
+        'value_proposition': r"Propuesta de Valor:?\s*(.*)",
+        'channels': r"Canales:?\s*(.*)",
+        'resources': r"Recursos:?\s*(.*)",
+        'estimated_cost': r"Egresos / Costo unitario estimado:?\s*(.*)"
+    }
+    data = {}
+    for key, pattern in fields.items():
+        match = re.search(pattern, text, re.IGNORECASE)
+        data[key] = match.group(1).strip() if match else None
+    return data
+
+def upsert_pdf_data(identity, data):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        query = """
+        INSERT INTO pdf_data (identity, first_name, last_name, faculty, career, phone, email, semester,
+        area, product_description, problem_identification, innovation_solution, customers,
+        value_proposition, channels, resources, estimated_cost, updated_at)
+        VALUES (%(identity)s, %(first_name)s, %(last_name)s, %(faculty)s, %(career)s, %(phone)s, %(email)s, %(semester)s,
+        %(area)s, %(product_description)s, %(problem_identification)s, %(innovation_solution)s, %(customers)s,
+        %(value_proposition)s, %(channels)s, %(resources)s, %(estimated_cost)s, now())
+        ON CONFLICT (identity) DO UPDATE SET
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name,
+        faculty = EXCLUDED.faculty,
+        career = EXCLUDED.career,
+        phone = EXCLUDED.phone,
+        email = EXCLUDED.email,
+        semester = EXCLUDED.semester,
+        area = EXCLUDED.area,
+        product_description = EXCLUDED.product_description,
+        problem_identification = EXCLUDED.problem_identification,
+        innovation_solution = EXCLUDED.innovation_solution,
+        customers = EXCLUDED.customers,
+        value_proposition = EXCLUDED.value_proposition,
+        channels = EXCLUDED.channels,
+        resources = EXCLUDED.resources,
+        estimated_cost = EXCLUDED.estimated_cost,
+        updated_at = now();
+        """
+        data['identity'] = identity
+        cur.execute(query, data)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"❌ Error al insertar o actualizar PDF_DATA: {e}")
+
 chat_blueprint = Blueprint('chat', __name__)
 
 @chat_blueprint.route('/chat', methods=['POST'])
@@ -173,27 +169,29 @@ def chat():
         pdf_file = request.files.get("pdf")
 
         if identity not in user_contexts:
-            historial_prev = cargar_historial_por_identity(identity)
-            user_contexts[identity] = historial_prev
+            user_contexts[identity] = cargar_historial_por_identity(identity)
+            with open(os.path.join(os.path.dirname(__file__), '../rules/rule_chat.txt'), 'r', encoding='utf-8') as f:
+                reglas = f.read().strip()
+                user_contexts[identity].insert(0, {'role': 'system', 'content': reglas})
 
         if pdf_file and pdf_file.filename.endswith(".pdf"):
-            uploaded_text = extract_text_from_pdf(pdf_file)
-            datos = extraer_datos_pdf(uploaded_text)
-            guardar_datos_pdf(identity, datos)
-            user_contexts[identity].append({"role": "user", "content": uploaded_text})
-            guardar_mensaje(identity, "user", uploaded_text)
+            texto_pdf = extract_text_from_pdf(pdf_file)
+            campos_extraidos = parse_pdf_fields(texto_pdf)
+            upsert_pdf_data(identity, campos_extraidos)
+            user_contexts[identity].append({'role': 'user', 'content': f"PDF:
+{texto_pdf}"})
+            guardar_mensaje(identity, 'user', texto_pdf)
 
         if user_message:
-            user_contexts[identity].append({"role": "user", "content": user_message})
-            guardar_mensaje(identity, "user", user_message)
+            user_contexts[identity].append({'role': 'user', 'content': user_message})
+            guardar_mensaje(identity, 'user', user_message)
 
-        user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
         respuesta = openai_IA(user_contexts[identity])
-        user_contexts[identity].append({"role": "assistant", "content": respuesta})
-        guardar_mensaje(identity, "assistant", respuesta)
+        user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
+        guardar_mensaje(identity, 'assistant', respuesta)
 
         return jsonify({"response": respuesta})
-    
+
     except Exception as e:
         logging.error(f"Error general en /chat: {str(e)}")
         return jsonify({"response": "Error interno del servidor"}), 500
