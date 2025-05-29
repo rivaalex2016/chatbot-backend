@@ -171,7 +171,7 @@ def chat():
             campos = extract_pdf_fields(text)
             campos["identity"] = identity
             guardar_datos_pdf(campos)
-            user_contexts[identity].append({"role": "user", "content": f"PDF:
+            user_contexts[identity].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
 {text}"})
             guardar_mensaje(identity, "user", text)
 
