@@ -20,6 +20,23 @@ openai.api_key = OPENAI_API_KEY
 user_contexts = {}
 MAX_CONTEXT_LENGTH = 20
 
+REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
+REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
+
+REFERENCE_TEXT = ""
+REFERENCE_DF = pd.DataFrame()
+
+try:
+    with pdfplumber.open(REFERENCE_PDF_PATH) as pdf:
+        REFERENCE_TEXT = "\n".join(page.extract_text() or "" for page in pdf.pages).strip().lower()
+except:
+    pass
+
+try:
+    REFERENCE_DF = pd.read_excel(REFERENCE_FILE_PATH)
+except:
+    pass
+
 def get_db_connection():
     return psycopg2.connect(
         dbname=os.getenv("DB_NAME"),
@@ -29,113 +46,135 @@ def get_db_connection():
         port=os.getenv("DB_PORT")
     )
 
-def guardar_pdf_data(data):
+def guardar_mensaje(identity, role, content):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        query = """
-        INSERT INTO pdf_data (
-            identity, first_name, last_name, faculty, career, phone, email, semester,
-            area, product_description, problem_identification, innovation_solution,
-            customers, value_proposition, channels, resources, estimated_cost, updated_at
-        )
-        VALUES (%(identity)s, %(first_name)s, %(last_name)s, %(faculty)s, %(career)s, %(phone)s, %(email)s, %(semester)s,
-                %(area)s, %(product_description)s, %(problem_identification)s, %(innovation_solution)s,
-                %(customers)s, %(value_proposition)s, %(channels)s, %(resources)s, %(estimated_cost)s, NOW())
-        ON CONFLICT (identity) DO UPDATE SET
-            first_name = EXCLUDED.first_name,
-            last_name = EXCLUDED.last_name,
-            faculty = EXCLUDED.faculty,
-            career = EXCLUDED.career,
-            phone = EXCLUDED.phone,
-            email = EXCLUDED.email,
-            semester = EXCLUDED.semester,
-            area = EXCLUDED.area,
-            product_description = EXCLUDED.product_description,
-            problem_identification = EXCLUDED.problem_identification,
-            innovation_solution = EXCLUDED.innovation_solution,
-            customers = EXCLUDED.customers,
-            value_proposition = EXCLUDED.value_proposition,
-            channels = EXCLUDED.channels,
-            resources = EXCLUDED.resources,
-            estimated_cost = EXCLUDED.estimated_cost,
-            updated_at = NOW();
-        """
-        cur.execute(query, data)
+        cur.execute("INSERT INTO chat_history (identity, role, content, timestamp) VALUES (%s, %s, %s, %s)",
+                    (identity, role, content, datetime.now()))
         conn.commit()
         cur.close()
         conn.close()
     except Exception as e:
-        logging.error(f"❌ Error al guardar datos del PDF: {e}")
+        logging.error(f"❌ Error guardando mensaje en DB: {e}")
 
-def extract_fields_from_pdf(text, fallback_identity):
-    fields = {
-        "identity": fallback_identity,
-        "first_name": "", "last_name": "", "faculty": "", "career": "",
-        "phone": "", "email": "", "semester": "", "area": "", "product_description": "",
-        "problem_identification": "", "innovation_solution": "", "customers": "",
-        "value_proposition": "", "channels": "", "resources": "", "estimated_cost": ""
+def cargar_historial_por_identity(identity):
+    historial = []
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT role, content FROM chat_history WHERE identity = %s ORDER BY timestamp ASC", (identity,))
+        for row in cur.fetchall():
+            historial.append({"role": row[0], "content": row[1]})
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"❌ Error cargando historial desde DB: {e}")
+    return historial
+
+def extraer_datos_pdf(texto):
+    datos = {}
+    patrones = {
+        'first_name': r'Nombres\s*[:\-]?\s*(.*)',
+        'last_name': r'Apellidos\s*[:\-]?\s*(.*)',
+        'faculty': r'Facultad\s*[:\-]?\s*(.*)',
+        'career': r'Carrera\s*[:\-]?\s*(.*)',
+        'phone': r'Tel[eé]fono\s*[:\-]?\s*(.*)',
+        'email': r'Correo\s*[:\-]?\s*(.*)',
+        'semester': r'Semestre\s*[:\-]?\s*(\d+)',
+        'area': r'Área\s*[:\-]?\s*(.*)',
+        'product_description': r'Descripci[oó]n del producto/servicio\s*[:\-]?\s*(.*)',
+        'problem_identification': r'Identificaci[oó]n del problema que resuelve\s*[:\-]?\s*(.*)',
+        'innovation_solution': r'Soluci[oó]n o cambios que genera la innovaci[oó]n\s*[:\-]?\s*(.*)',
+        'customers': r'Clientes / Usuarios\s*[:\-]?\s*(.*)',
+        'value_proposition': r'Propuesta de Valor\s*[:\-]?\s*(.*)',
+        'channels': r'Canales\s*[:\-]?\s*(.*)',
+        'resources': r'Recursos\s*[:\-]?\s*(.*)',
+        'estimated_cost': r'Egresos / Costo unitario estimado\s*[:\-]?\s*(.*)'
     }
+    for campo, patron in patrones.items():
+        match = re.search(patron, texto, re.IGNORECASE)
+        datos[campo] = match.group(1).strip() if match else None
+    return datos
 
-    def get_value(label):
-        pattern = rf"{label}:\s*(.*)"
-        match = re.search(pattern, text, re.IGNORECASE)
-        return match.group(1).strip() if match else ""
+def upsert_pdf_data(identity, datos):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        columnas = ', '.join(datos.keys())
+        valores = ', '.join(['%s'] * len(datos))
+        actualiza = ', '.join([f"{k} = EXCLUDED.{k}" for k in datos.keys()])
+        sql = f"""
+            INSERT INTO pdf_data (identity, {columnas})
+            VALUES (%s, {valores})
+            ON CONFLICT (identity)
+            DO UPDATE SET {actualiza}, updated_at = CURRENT_TIMESTAMP;
+        """
+        cur.execute(sql, (identity, *datos.values()))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"❌ Error en UPSERT pdf_data: {e}")
 
-    fields["first_name"] = get_value("Nombres")
-    fields["last_name"] = get_value("Apellidos")
-    fields["faculty"] = get_value("Facultad")
-    fields["career"] = get_value("Carrera")
-    fields["phone"] = get_value("Número de Teléfono")
-    fields["email"] = get_value("Correo Electrónico")
-    fields["semester"] = get_value("Semestre que Cursa")
-    fields["area"] = get_value("Área")
-    fields["product_description"] = get_value("Descripción del producto/servicio")
-    fields["problem_identification"] = get_value("Identificación del problema que resuelve")
-    fields["innovation_solution"] = get_value("Solución o cambios que genera la innovación")
-    fields["customers"] = get_value("Clientes / Usuarios")
-    fields["value_proposition"] = get_value("Propuesta de Valor")
-    fields["channels"] = get_value("Canales")
-    fields["resources"] = get_value("Recursos")
-    fields["estimated_cost"] = get_value("Egresos / Costo unitario estimado")
-
-    # Si hay una cédula, extraerla, si no usar el fallback
-    cedula_match = re.search(r"\b\d{10}\b", text)
-    if cedula_match:
-        fields["identity"] = cedula_match.group(0)
-
-    return fields
+def openai_IA(mensajes, model=MODEL, temperature=0.7):
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=mensajes,
+            temperature=temperature,
+        )
+        return response.choices[0].message["content"]
+    except RateLimitError:
+        logging.error("Token de OpenAI insuficiente.")
+        return "Error: Token de OpenAI insuficiente."
+    except Exception as e:
+        logging.error(f"Error en OpenAI: {e}")
+        return "Error procesando la solicitud de la IA."
 
 def extract_text_from_pdf(file) -> str:
     text = ""
     with pdfplumber.open(file) as pdf:
         for page in pdf.pages:
             text += page.extract_text() or ""
-    return text.strip()
+    return text.strip().lower()
+
+def compare_pdfs(reference_text: str, uploaded_text: str) -> bool:
+    similarity = SequenceMatcher(None, reference_text, uploaded_text).ratio() * 100
+    return 5 < similarity < 90
 
 chat_blueprint = Blueprint('chat', __name__)
 
-@chat_blueprint.route("/chat", methods=["POST"])
+@chat_blueprint.route('/chat', methods=['POST'])
 def chat():
     try:
         identity = request.form.get("user_id", "default_user")
+        user_message = request.form.get("message", "")
         pdf_file = request.files.get("pdf")
+
+        if identity not in user_contexts:
+            historial_prev = cargar_historial_por_identity(identity)
+            user_contexts[identity] = historial_prev
 
         if pdf_file and pdf_file.filename.endswith(".pdf"):
             try:
-                pdf_text = extract_text_from_pdf(pdf_file)
-                datos_extraidos = extract_fields_from_pdf(pdf_text, identity)
-
-                if not datos_extraidos["identity"]:
-                    return jsonify({"response": "No se encontró una cédula válida en el PDF."})
-
-                guardar_pdf_data(datos_extraidos)
-                return jsonify({"response": "Información del PDF almacenada correctamente."})
-
+                uploaded_text = extract_text_from_pdf(pdf_file)
+                datos_extraidos = extraer_datos_pdf(uploaded_text)
+                upsert_pdf_data(identity, datos_extraidos)
+                user_contexts[identity].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
+                guardar_mensaje(identity, 'user', uploaded_text)
             except Exception as e:
-                return jsonify({"response": f"Error procesando el PDF: {str(e)}"})
+                return jsonify({"response": f"Error procesando PDF: {str(e)}"})
 
-        return jsonify({"response": "No se envió un archivo PDF válido."})
+        if user_message:
+            user_contexts[identity].append({'role': 'user', 'content': user_message})
+            guardar_mensaje(identity, 'user', user_message)
+
+        user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
+        respuesta = openai_IA(user_contexts[identity])
+        user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
+        guardar_mensaje(identity, 'assistant', respuesta)
+        return jsonify({"response": respuesta})
 
     except Exception as e:
         logging.error(f"Error general en /chat: {str(e)}")
