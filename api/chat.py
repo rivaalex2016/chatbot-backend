@@ -37,6 +37,7 @@ try:
 except:
     pass
 
+
 def get_db_connection():
     return psycopg2.connect(
         dbname=os.getenv("DB_NAME"),
@@ -50,13 +51,15 @@ def guardar_mensaje(identity, role, content):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("INSERT INTO chat_history (identity, role, content, timestamp) VALUES (%s, %s, %s, %s)",
-                    (identity, role, content, datetime.now()))
+        cur.execute("""
+            INSERT INTO chat_history (identity, role, content, timestamp)
+            VALUES (%s, %s, %s, %s)
+        """, (identity, role, content, datetime.now()))
         conn.commit()
         cur.close()
         conn.close()
     except Exception as e:
-        logging.error(f"❌ Error guardando mensaje en DB: {e}")
+        logging.error(f"Error guardando mensaje en DB: {e}")
 
 def cargar_historial_por_identity(identity):
     historial = []
@@ -69,53 +72,8 @@ def cargar_historial_por_identity(identity):
         cur.close()
         conn.close()
     except Exception as e:
-        logging.error(f"❌ Error cargando historial desde DB: {e}")
+        logging.error(f"Error cargando historial desde DB: {e}")
     return historial
-
-def extraer_datos_pdf(texto):
-    datos = {}
-    patrones = {
-        'first_name': r'Nombres\s*[:\-]?\s*(.*)',
-        'last_name': r'Apellidos\s*[:\-]?\s*(.*)',
-        'faculty': r'Facultad\s*[:\-]?\s*(.*)',
-        'career': r'Carrera\s*[:\-]?\s*(.*)',
-        'phone': r'Tel[eé]fono\s*[:\-]?\s*(.*)',
-        'email': r'Correo\s*[:\-]?\s*(.*)',
-        'semester': r'Semestre\s*[:\-]?\s*(\d+)',
-        'area': r'Área\s*[:\-]?\s*(.*)',
-        'product_description': r'Descripci[oó]n del producto/servicio\s*[:\-]?\s*(.*)',
-        'problem_identification': r'Identificaci[oó]n del problema que resuelve\s*[:\-]?\s*(.*)',
-        'innovation_solution': r'Soluci[oó]n o cambios que genera la innovaci[oó]n\s*[:\-]?\s*(.*)',
-        'customers': r'Clientes / Usuarios\s*[:\-]?\s*(.*)',
-        'value_proposition': r'Propuesta de Valor\s*[:\-]?\s*(.*)',
-        'channels': r'Canales\s*[:\-]?\s*(.*)',
-        'resources': r'Recursos\s*[:\-]?\s*(.*)',
-        'estimated_cost': r'Egresos / Costo unitario estimado\s*[:\-]?\s*(.*)'
-    }
-    for campo, patron in patrones.items():
-        match = re.search(patron, texto, re.IGNORECASE)
-        datos[campo] = match.group(1).strip() if match else None
-    return datos
-
-def upsert_pdf_data(identity, datos):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        columnas = ', '.join(datos.keys())
-        valores = ', '.join(['%s'] * len(datos))
-        actualiza = ', '.join([f"{k} = EXCLUDED.{k}" for k in datos.keys()])
-        sql = f"""
-            INSERT INTO pdf_data (identity, {columnas})
-            VALUES (%s, {valores})
-            ON CONFLICT (identity)
-            DO UPDATE SET {actualiza}, updated_at = CURRENT_TIMESTAMP;
-        """
-        cur.execute(sql, (identity, *datos.values()))
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as e:
-        logging.error(f"❌ Error en UPSERT pdf_data: {e}")
 
 def openai_IA(mensajes, model=MODEL, temperature=0.7):
     try:
@@ -132,50 +90,102 @@ def openai_IA(mensajes, model=MODEL, temperature=0.7):
         logging.error(f"Error en OpenAI: {e}")
         return "Error procesando la solicitud de la IA."
 
-def extract_text_from_pdf(file) -> str:
-    text = ""
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() or ""
-    return text.strip().lower()
+def extract_pdf_fields(text):
+    fields = {
+        "first_name": re.search(r"Nombres:\s*(.*)", text),
+        "last_name": re.search(r"Apellidos:\s*(.*)", text),
+        "faculty": re.search(r"Facultad:\s*(.*)", text),
+        "career": re.search(r"Carrera:\s*(.*)", text),
+        "phone": re.search(r"Número de Teléfono:\s*(.*)", text),
+        "email": re.search(r"Correo Electrónico:\s*(.*)", text),
+        "semester": re.search(r"Semestre que Cursa:\s*(.*)", text),
+        "area": re.search(r"\n\s*\u00c1rea\s*\n(.*?)\n", text, re.DOTALL),
+        "product_description": re.search(r"Descripción del producto/servicio\s*(.*?)\n", text),
+        "problem_identification": re.search(r"Identificación del problema que resuelve\s*(.*?)\n", text),
+        "innovation_solution": re.search(r"Solución o cambios que genera la innovación\s*(.*?)\n", text),
+        "customers": re.search(r"Clientes / Usuarios\s*(.*?)\n", text),
+        "value_proposition": re.search(r"Propuesta de Valor\s*(.*?)\n", text),
+        "channels": re.search(r"Canales\s*(.*?)\n", text),
+        "resources": re.search(r"Recursos\s*(.*?)\n", text),
+        "estimated_cost": re.search(r"Egresos / Costo unitario estimado\s*(.*?)\n", text)
+    }
+    return {k: (v.group(1).strip() if v else None) for k, v in fields.items()}
 
-def compare_pdfs(reference_text: str, uploaded_text: str) -> bool:
-    similarity = SequenceMatcher(None, reference_text, uploaded_text).ratio() * 100
-    return 5 < similarity < 90
+def guardar_datos_pdf(data):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO pdf_data (
+                identity, first_name, last_name, faculty, career, phone, email, semester,
+                area, product_description, problem_identification, innovation_solution,
+                customers, value_proposition, channels, resources, estimated_cost, updated_at)
+            VALUES (
+                %(identity)s, %(first_name)s, %(last_name)s, %(faculty)s, %(career)s, %(phone)s, %(email)s, %(semester)s,
+                %(area)s, %(product_description)s, %(problem_identification)s, %(innovation_solution)s,
+                %(customers)s, %(value_proposition)s, %(channels)s, %(resources)s, %(estimated_cost)s, now())
+            ON CONFLICT (identity) DO UPDATE SET
+                first_name=EXCLUDED.first_name,
+                last_name=EXCLUDED.last_name,
+                faculty=EXCLUDED.faculty,
+                career=EXCLUDED.career,
+                phone=EXCLUDED.phone,
+                email=EXCLUDED.email,
+                semester=EXCLUDED.semester,
+                area=EXCLUDED.area,
+                product_description=EXCLUDED.product_description,
+                problem_identification=EXCLUDED.problem_identification,
+                innovation_solution=EXCLUDED.innovation_solution,
+                customers=EXCLUDED.customers,
+                value_proposition=EXCLUDED.value_proposition,
+                channels=EXCLUDED.channels,
+                resources=EXCLUDED.resources,
+                estimated_cost=EXCLUDED.estimated_cost,
+                updated_at=now()
+        """, data)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Error guardando datos PDF: {e}")
 
 chat_blueprint = Blueprint('chat', __name__)
 
 @chat_blueprint.route('/chat', methods=['POST'])
 def chat():
     try:
-        identity = request.form.get("user_id", "default_user")
-        user_message = request.form.get("message", "")
+        identity = request.form.get("user_id")
+        message = request.form.get("message", "")
         pdf_file = request.files.get("pdf")
 
+        if not identity:
+            return jsonify({"response": "Debes ingresar tu número de cédula."}), 400
+
         if identity not in user_contexts:
-            historial_prev = cargar_historial_por_identity(identity)
-            user_contexts[identity] = historial_prev
+            historial = cargar_historial_por_identity(identity)
+            user_contexts[identity] = historial
 
         if pdf_file and pdf_file.filename.endswith(".pdf"):
-            try:
-                uploaded_text = extract_text_from_pdf(pdf_file)
-                datos_extraidos = extraer_datos_pdf(uploaded_text)
-                upsert_pdf_data(identity, datos_extraidos)
-                user_contexts[identity].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
-                guardar_mensaje(identity, 'user', uploaded_text)
-            except Exception as e:
-                return jsonify({"response": f"Error procesando PDF: {str(e)}"})
+            with pdfplumber.open(pdf_file) as pdf:
+                text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+            campos = extract_pdf_fields(text)
+            campos["identity"] = identity
+            guardar_datos_pdf(campos)
+            user_contexts[identity].append({"role": "user", "content": f"PDF:
+{text}"})
+            guardar_mensaje(identity, "user", text)
 
-        if user_message:
-            user_contexts[identity].append({'role': 'user', 'content': user_message})
-            guardar_mensaje(identity, 'user', user_message)
+        if message:
+            user_contexts[identity].append({"role": "user", "content": message})
+            guardar_mensaje(identity, "user", message)
 
         user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
         respuesta = openai_IA(user_contexts[identity])
-        user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
-        guardar_mensaje(identity, 'assistant', respuesta)
+        user_contexts[identity].append({"role": "assistant", "content": respuesta})
+        guardar_mensaje(identity, "assistant", respuesta)
+
         return jsonify({"response": respuesta})
 
     except Exception as e:
-        logging.error(f"Error general en /chat: {str(e)}")
+        logging.error(f"Error general en /chat: {e}")
         return jsonify({"response": "Error interno del servidor"}), 500
