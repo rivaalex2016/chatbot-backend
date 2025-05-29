@@ -1,4 +1,3 @@
-# chat.py
 import os
 import re
 import logging
@@ -34,109 +33,110 @@ def guardar_pdf_data(data):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO pdf_data (
-                identity, first_name, last_name, faculty, career, phone, email, semester,
-                area, product_description, problem_identification, innovation_solution,
-                customers, value_proposition, channels, resources, estimated_cost, updated_at
-            ) VALUES (
-                %(identity)s, %(first_name)s, %(last_name)s, %(faculty)s, %(career)s, %(phone)s, %(email)s, %(semester)s,
+        query = """
+        INSERT INTO pdf_data (
+            identity, first_name, last_name, faculty, career, phone, email, semester,
+            area, product_description, problem_identification, innovation_solution,
+            customers, value_proposition, channels, resources, estimated_cost, updated_at
+        )
+        VALUES (%(identity)s, %(first_name)s, %(last_name)s, %(faculty)s, %(career)s, %(phone)s, %(email)s, %(semester)s,
                 %(area)s, %(product_description)s, %(problem_identification)s, %(innovation_solution)s,
-                %(customers)s, %(value_proposition)s, %(channels)s, %(resources)s, %(estimated_cost)s, now()
-            )
-            ON CONFLICT (identity) DO UPDATE SET
-                first_name = EXCLUDED.first_name,
-                last_name = EXCLUDED.last_name,
-                faculty = EXCLUDED.faculty,
-                career = EXCLUDED.career,
-                phone = EXCLUDED.phone,
-                email = EXCLUDED.email,
-                semester = EXCLUDED.semester,
-                area = EXCLUDED.area,
-                product_description = EXCLUDED.product_description,
-                problem_identification = EXCLUDED.problem_identification,
-                innovation_solution = EXCLUDED.innovation_solution,
-                customers = EXCLUDED.customers,
-                value_proposition = EXCLUDED.value_proposition,
-                channels = EXCLUDED.channels,
-                resources = EXCLUDED.resources,
-                estimated_cost = EXCLUDED.estimated_cost,
-                updated_at = now()
-        """, data)
+                %(customers)s, %(value_proposition)s, %(channels)s, %(resources)s, %(estimated_cost)s, NOW())
+        ON CONFLICT (identity) DO UPDATE SET
+            first_name = EXCLUDED.first_name,
+            last_name = EXCLUDED.last_name,
+            faculty = EXCLUDED.faculty,
+            career = EXCLUDED.career,
+            phone = EXCLUDED.phone,
+            email = EXCLUDED.email,
+            semester = EXCLUDED.semester,
+            area = EXCLUDED.area,
+            product_description = EXCLUDED.product_description,
+            problem_identification = EXCLUDED.problem_identification,
+            innovation_solution = EXCLUDED.innovation_solution,
+            customers = EXCLUDED.customers,
+            value_proposition = EXCLUDED.value_proposition,
+            channels = EXCLUDED.channels,
+            resources = EXCLUDED.resources,
+            estimated_cost = EXCLUDED.estimated_cost,
+            updated_at = NOW();
+        """
+        cur.execute(query, data)
         conn.commit()
         cur.close()
         conn.close()
     except Exception as e:
-        logging.error(f"❌ Error guardando PDF en DB: {e}")
+        logging.error(f"❌ Error al guardar datos del PDF: {e}")
 
-def extraer_datos_pdf(file):
-    with pdfplumber.open(file) as pdf:
-        text = "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
-
-    data = {
-        "identity": re.search(r"Cédula.*?:\s*(\d+)", text, re.IGNORECASE),
-        "first_name": re.search(r"Nombres.*?:\s*(.+)", text, re.IGNORECASE),
-        "last_name": re.search(r"Apellidos.*?:\s*(.+)", text, re.IGNORECASE),
-        "faculty": re.search(r"Facultad.*?:\s*(.+)", text, re.IGNORECASE),
-        "career": re.search(r"Carrera.*?:\s*(.+)", text, re.IGNORECASE),
-        "phone": re.search(r"Teléfono.*?:\s*(.+)", text, re.IGNORECASE),
-        "email": re.search(r"Correo.*?:\s*(.+)", text, re.IGNORECASE),
-        "semester": re.search(r"Semestre.*?:\s*(.+)", text, re.IGNORECASE),
-        "area": re.search(r"Área.*?:\s*(.+)", text, re.IGNORECASE),
-        "product_description": re.search(r"Descripción.*?:\s*(.+)", text, re.IGNORECASE),
-        "problem_identification": re.search(r"Identificación del problema.*?:\s*(.+)", text, re.IGNORECASE),
-        "innovation_solution": re.search(r"Solución.*?:\s*(.+)", text, re.IGNORECASE),
-        "customers": re.search(r"Clientes.*?:\s*(.+)", text, re.IGNORECASE),
-        "value_proposition": re.search(r"Propuesta de Valor.*?:\s*(.+)", text, re.IGNORECASE),
-        "channels": re.search(r"Canales.*?:\s*(.+)", text, re.IGNORECASE),
-        "resources": re.search(r"Recursos.*?:\s*(.+)", text, re.IGNORECASE),
-        "estimated_cost": re.search(r"Egresos.*?:\s*(.+)", text, re.IGNORECASE)
+def extract_fields_from_pdf(text, fallback_identity):
+    fields = {
+        "identity": fallback_identity,
+        "first_name": "", "last_name": "", "faculty": "", "career": "",
+        "phone": "", "email": "", "semester": "", "area": "", "product_description": "",
+        "problem_identification": "", "innovation_solution": "", "customers": "",
+        "value_proposition": "", "channels": "", "resources": "", "estimated_cost": ""
     }
 
-    # Extraer el texto limpio
-    for k, v in data.items():
-        data[k] = v.group(1).strip() if v else None
+    def get_value(label):
+        pattern = rf"{label}:\s*(.*)"
+        match = re.search(pattern, text, re.IGNORECASE)
+        return match.group(1).strip() if match else ""
 
-    return data
+    fields["first_name"] = get_value("Nombres")
+    fields["last_name"] = get_value("Apellidos")
+    fields["faculty"] = get_value("Facultad")
+    fields["career"] = get_value("Carrera")
+    fields["phone"] = get_value("Número de Teléfono")
+    fields["email"] = get_value("Correo Electrónico")
+    fields["semester"] = get_value("Semestre que Cursa")
+    fields["area"] = get_value("Área")
+    fields["product_description"] = get_value("Descripción del producto/servicio")
+    fields["problem_identification"] = get_value("Identificación del problema que resuelve")
+    fields["innovation_solution"] = get_value("Solución o cambios que genera la innovación")
+    fields["customers"] = get_value("Clientes / Usuarios")
+    fields["value_proposition"] = get_value("Propuesta de Valor")
+    fields["channels"] = get_value("Canales")
+    fields["resources"] = get_value("Recursos")
+    fields["estimated_cost"] = get_value("Egresos / Costo unitario estimado")
 
-# Blueprint Flask
+    # Si hay una cédula, extraerla, si no usar el fallback
+    cedula_match = re.search(r"\b\d{10}\b", text)
+    if cedula_match:
+        fields["identity"] = cedula_match.group(0)
+
+    return fields
+
+def extract_text_from_pdf(file) -> str:
+    text = ""
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+    return text.strip()
+
 chat_blueprint = Blueprint('chat', __name__)
 
-@chat_blueprint.route('/chat', methods=['POST'])
+@chat_blueprint.route("/chat", methods=["POST"])
 def chat():
     try:
         identity = request.form.get("user_id", "default_user")
-        user_message = request.form.get("message", "")
         pdf_file = request.files.get("pdf")
 
         if pdf_file and pdf_file.filename.endswith(".pdf"):
             try:
-                pdf_data = extraer_datos_pdf(pdf_file)
-                if pdf_data.get("identity"):
-                    guardar_pdf_data(pdf_data)
-                else:
+                pdf_text = extract_text_from_pdf(pdf_file)
+                datos_extraidos = extract_fields_from_pdf(pdf_text, identity)
+
+                if not datos_extraidos["identity"]:
                     return jsonify({"response": "No se encontró una cédula válida en el PDF."})
+
+                guardar_pdf_data(datos_extraidos)
+                return jsonify({"response": "Información del PDF almacenada correctamente."})
+
             except Exception as e:
-                return jsonify({"response": f"Error al analizar el PDF: {e}"})
+                return jsonify({"response": f"Error procesando el PDF: {str(e)}"})
 
-        if not user_message:
-            return jsonify({"response": "Envíame un mensaje o un archivo para analizar."})
-
-        if identity not in user_contexts:
-            user_contexts[identity] = []
-
-        user_contexts[identity].append({'role': 'user', 'content': user_message})
-        user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
-
-        respuesta = openai.ChatCompletion.create(
-            model=MODEL,
-            messages=user_contexts[identity],
-            temperature=0.7
-        ).choices[0].message["content"]
-
-        user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
-        return jsonify({"response": respuesta})
+        return jsonify({"response": "No se envió un archivo PDF válido."})
 
     except Exception as e:
-        logging.error(f"❌ Error general en /chat: {str(e)}")
+        logging.error(f"Error general en /chat: {str(e)}")
         return jsonify({"response": "Error interno del servidor"}), 500
