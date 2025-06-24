@@ -160,7 +160,7 @@ def chat():
             try:
                 uploaded_text = extract_text_from_pdf(pdf_file)
 
-                # Verificar si el PDF es válido según referencia
+                # Verificar si el PDF es válido comparándolo con la referencia
                 if not compare_pdfs(REFERENCE_TEXT, uploaded_text):
                     return jsonify({
                         "response": (
@@ -170,19 +170,24 @@ def chat():
                         )
                     })
 
+                # Extraer datos clave del PDF y guardarlos
                 datos_extraidos = extraer_datos_pdf(uploaded_text)
                 upsert_pdf_data(identity, datos_extraidos)
 
-                # Agregar texto del PDF al historial
-                user_contexts[identity].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
+                # Agregar el contenido del PDF al historial
+                user_contexts[identity].append({
+                    'role': 'user',
+                    'content': f"DATOS EXTRAÍDOS DEL PDF:\n{uploaded_text}"
+                })
                 guardar_mensaje(identity, 'user', uploaded_text)
 
-                # ✅ Nueva instrucción para que la IA analice el contenido
+                # ✅ Instrucción clara a la IA para que actúe sobre el contenido
                 user_contexts[identity].append({
                     'role': 'user',
                     'content': (
-                        "He subido mi propuesta de emprendimiento. "
-                        "Por favor, revísala y dime si falta información o qué mejoras podría hacer."
+                        "INSTRUCCIÓN: Analiza esta propuesta de emprendimiento. "
+                        "Brinda recomendaciones, mejoras posibles y señala si hay información faltante. "
+                        "Responde como si fueras un mentor experto del Centro de Emprendimiento."
                     )
                 })
 
