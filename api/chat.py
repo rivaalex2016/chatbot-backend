@@ -172,8 +172,20 @@ def chat():
 
                 datos_extraidos = extraer_datos_pdf(uploaded_text)
                 upsert_pdf_data(identity, datos_extraidos)
+
+                # Agregar texto del PDF al historial
                 user_contexts[identity].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
                 guardar_mensaje(identity, 'user', uploaded_text)
+
+                # ✅ Nueva instrucción para que la IA analice el contenido
+                user_contexts[identity].append({
+                    'role': 'user',
+                    'content': (
+                        "He subido mi propuesta de emprendimiento. "
+                        "Por favor, revísala y dime si falta información o qué mejoras podría hacer."
+                    )
+                })
+
             except Exception as e:
                 return jsonify({"response": f"Error procesando PDF: {str(e)}"})
 
