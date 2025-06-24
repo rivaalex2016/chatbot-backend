@@ -49,7 +49,7 @@ chatForm.addEventListener("submit", async (e) => {
 
   if (!message && !file) return;
   if (!message && file) {
-    message = "Analiza este archivo, por favor.";
+    message = "Analiza esta propuesta de emprendimiento. Brinda recomendaciones, mejoras posibles y señala si hay información faltante. Responde como si fueras un mentor experto del Centro de Emprendimiento.";
   }
 
   if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
