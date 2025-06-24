@@ -159,12 +159,24 @@ def chat():
         if pdf_file and pdf_file.filename.endswith(".pdf"):
             try:
                 uploaded_text = extract_text_from_pdf(pdf_file)
+
+                # Verificar si el PDF es válido según referencia
+                if not compare_pdfs(REFERENCE_TEXT, uploaded_text):
+                    return jsonify({
+                        "response": (
+                            "📄 El archivo enviado no parece una propuesta de emprendimiento válida. "
+                            "Por favor, descarga y completa el formato oficial desde este enlace: "
+                            "<a href='https://tusitio.com/formato_propuesta.pdf' target='_blank'>Formato Propuesta PDF</a>"
+                        )
+                    })
+
                 datos_extraidos = extraer_datos_pdf(uploaded_text)
                 upsert_pdf_data(identity, datos_extraidos)
                 user_contexts[identity].append({'role': 'user', 'content': f"PDF:\n{uploaded_text}"})
                 guardar_mensaje(identity, 'user', uploaded_text)
             except Exception as e:
                 return jsonify({"response": f"Error procesando PDF: {str(e)}"})
+
 
         if user_message:
             user_contexts[identity].append({'role': 'user', 'content': user_message})
