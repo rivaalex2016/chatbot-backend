@@ -237,7 +237,7 @@ def chat():
         respuesta = openai_IA(user_contexts[identity])
         user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
         guardar_mensaje(identity, 'assistant', respuesta)
-        return jsonify({"response": respuesta})
+        return jsonify({"response": f"{mensaje_calificacion}\n\n{respuesta}"})
 
     except Exception as e:
         logging.error(f"Error general en /chat: {str(e)}")
