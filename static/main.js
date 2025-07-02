@@ -49,8 +49,24 @@ chatForm.addEventListener("submit", async (e) => {
 
   if (!message && !file) return;
   if (!message && file) {
-    message = "Analiza esta propuesta de emprendimiento. Brinda recomendaciones, mejoras posibles y señala si hay información faltante. Responde como si fueras un mentor experto del Centro de Emprendimiento.";
+    message = `Evalúa esta propuesta de emprendimiento usando los siguientes criterios:
+
+  1. **Problema / Solución**: ¿Qué problema resuelve y cómo?
+  2. **Mercado**: ¿Está definido el mercado y su potencial?
+  3. **Competencia**: ¿Se identifica la competencia y se define una ventaja?
+  4. **Modelo de negocio**: ¿Está claro cómo generará ingresos?
+  5. **Escalabilidad**: ¿Puede crecer con eficiencia?
+  6. **Equipo**: ¿Quién lidera y ejecuta la propuesta?
+
+  Para cada criterio, asigna una puntuación:
+  - Inicial (2 puntos)
+  - En desarrollo (5 puntos)
+  - Desarrollado (8 puntos)
+  - Excelencia (10 puntos)
+
+  Justifica cada calificación brevemente. Finaliza con el promedio total y recomendaciones para mejorar. Responde como un evaluador experto de INNOVUG.`;
   }
+
 
   if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
   if (file) addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");

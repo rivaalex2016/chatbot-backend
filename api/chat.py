@@ -145,32 +145,6 @@ def compare_pdfs(reference_text: str, uploaded_text: str) -> bool:
 
 chat_blueprint = Blueprint('chat', __name__)
 
-# -----------------------------------------------
-# EVALUACIÓN AUTOMÁTICA DE PROPUESTA DESDE EXCEL
-# -----------------------------------------------
-
-try:
-    criterios_df = pd.read_excel(REFERENCE_FILE_PATH, header=4)
-    criterios_limpios = criterios_df.iloc[:, 1].dropna().reset_index(drop=True)
-    criterios_texto = criterios_limpios[:-1].tolist()
-except:
-    criterios_texto = []
-
-def evaluar_propuesta_desde_texto(texto_pdf: str, criterios: list) -> tuple:
-    puntaje = 0
-    texto_pdf = texto_pdf.lower()
-    for criterio in criterios:
-        criterio_keywords = re.findall(r'\b\w+\b', criterio.lower())
-        matches = [palabra for palabra in criterio_keywords if palabra in texto_pdf]
-        if len(matches) > 3:
-            puntaje += 1
-    nota = round((puntaje / len(criterios)) * 10, 1) if criterios else 0
-    if nota >= 8:
-        mensaje = f"📊 Calificación de la propuesta: **{nota}/10**\\n🏆 ¡Felicitaciones! Acérquese al Centro de Emprendimiento para continuar el proceso."
-    else:
-        mensaje = f"📊 Calificación de la propuesta: **{nota}/10**\\n❗ Su propuesta aún necesita mejoras para ser considerada viable."
-    return nota, mensaje
-
 @chat_blueprint.route('/chat', methods=['POST'])
 def chat():
     try:
@@ -207,22 +181,25 @@ def chat():
                 })
                 guardar_mensaje(identity, 'user', uploaded_text)
 
-                # Evaluar automáticamente la propuesta según los criterios del Excel
-                nota, mensaje_calificacion = evaluar_propuesta_desde_texto(uploaded_text, criterios_texto)
-                user_contexts[identity].append({
-                    'role': 'user',
-                    'content': mensaje_calificacion
-                })
-                guardar_mensaje(identity, 'user', mensaje_calificacion)
-
                 # ✅ Instrucción clara a la IA para que actúe sobre el contenido
                 user_contexts[identity].append({
-                    'role': 'user',
-                    'content': (
-                        "INSTRUCCIÓN: Analiza esta propuesta de emprendimiento. "
-                        "Brinda recomendaciones, mejoras posibles y señala si hay información faltante. "
-                        "Responde como si fueras un mentor experto del Centro de Emprendimiento."
-                    )
+                        'role': 'user',
+                        'content': (
+                            "Evalúa esta propuesta de emprendimiento usando los siguientes criterios:\n\n"
+                            "1. **Problema / Solución**: ¿Qué problema resuelve y cómo?\n"
+                            "2. **Mercado**: ¿Está definido el mercado y su potencial?\n"
+                            "3. **Competencia**: ¿Se identifica la competencia y se define una ventaja?\n"
+                            "4. **Modelo de negocio**: ¿Está claro cómo generará ingresos?\n"
+                            "5. **Escalabilidad**: ¿Puede crecer con eficiencia?\n"
+                            "6. **Equipo**: ¿Quién lidera y ejecuta la propuesta?\n\n"
+                            "Para cada criterio, asigna una puntuación:\n"
+                            "- Inicial (2 puntos)\n"
+                            "- En desarrollo (5 puntos)\n"
+                            "- Desarrollado (8 puntos)\n"
+                            "- Excelencia (10 puntos)\n\n"
+                            "Justifica cada calificación brevemente. Finaliza con el promedio total y recomendaciones para mejorar. "
+                            "Responde como un evaluador experto de INNOVUG."
+                        )
                 })
 
             except Exception as e:
@@ -238,10 +215,7 @@ def chat():
         user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
         guardar_mensaje(identity, 'assistant', respuesta)
         # ✅ Este bloque evita error si no hay mensaje_calificacion
-        if 'mensaje_calificacion' in locals():
-            return jsonify({"response": f"{mensaje_calificacion}\n\n{respuesta}"})
-        else:
-            return jsonify({"response": respuesta})
+        return jsonify({"response": respuesta})
 
     except Exception as e:
         logging.error(f"Error general en /chat: {str(e)}")

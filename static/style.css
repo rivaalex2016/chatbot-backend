@@ -109,3 +109,39 @@
 .chat-input-wrapper.attached .remove-file {
   display: block;
 }
+
+/* Estilos para mostrar correctamente el contenido Markdown en los mensajes del bot */
+.mensaje-bot strong {
+  font-weight: bold;
+}
+
+.mensaje-bot em {
+  font-style: italic;
+}
+
+.mensaje-bot ul, .mensaje-bot ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.mensaje-bot li {
+  margin-bottom: 0.25em;
+}
+
+.mensaje-bot p {
+  margin: 0.5em 0;
+}
+
+.mensaje-bot h1,
+.mensaje-bot h2,
+.mensaje-bot h3 {
+  margin: 0.5em 0 0.25em;
+  font-weight: bold;
+}
+
+.mensaje-bot code {
+  font-family: monospace;
+  background-color: #f0f0f0;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
