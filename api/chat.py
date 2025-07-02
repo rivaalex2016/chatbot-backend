@@ -18,10 +18,18 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 
 user_contexts = {}
-MAX_CONTEXT_LENGTH = 20
+MAX_CONTEXT_LENGTH = 25
 
 REFERENCE_PDF_PATH = os.path.join(os.path.dirname(__file__), '../documents/doc_003.pdf')
 REFERENCE_FILE_PATH = os.path.join(os.path.dirname(__file__), '../documents/Criterios de evaluación de STARTUPS.xlsx')
+RULE_CHAT_PATH = os.path.join(os.path.dirname(__file__), '../rules/rule_chat.txt')
+SYSTEM_PROMPT = ""
+
+try:
+    with open(RULE_CHAT_PATH, "r", encoding="utf-8") as f:
+        SYSTEM_PROMPT = f.read().strip()
+except Exception as e:
+    logging.error(f"❌ No se pudo cargar rule_chat.txt: {e}")
 
 REFERENCE_TEXT = ""
 REFERENCE_DF = pd.DataFrame()
@@ -224,7 +232,14 @@ def chat():
                 guardar_mensaje(identity, 'user', user_message)
 
 
+        # Insertar mensaje del sistema solo si aún no está
+        if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[identity]):
+            user_contexts[identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
+
+        # Recortar contexto a máximo N mensajes
         user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
+
+        # Generar respuesta con OpenAI
         respuesta = openai_IA(user_contexts[identity])
         user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
         guardar_mensaje(identity, 'assistant', respuesta)
