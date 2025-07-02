@@ -183,23 +183,26 @@ def chat():
 
                 # ✅ Instrucción clara a la IA para que actúe sobre el contenido
                 user_contexts[identity].append({
-                        'role': 'user',
-                        'content': (
-                            "Evalúa esta propuesta de emprendimiento usando los siguientes criterios:\n\n"
-                            "1. **Problema / Solución**: ¿Qué problema resuelve y cómo?\n"
-                            "2. **Mercado**: ¿Está definido el mercado y su potencial?\n"
-                            "3. **Competencia**: ¿Se identifica la competencia y se define una ventaja?\n"
-                            "4. **Modelo de negocio**: ¿Está claro cómo generará ingresos?\n"
-                            "5. **Escalabilidad**: ¿Puede crecer con eficiencia?\n"
-                            "6. **Equipo**: ¿Quién lidera y ejecuta la propuesta?\n\n"
-                            "Para cada criterio, asigna una puntuación:\n"
-                            "- Inicial (2 puntos)\n"
-                            "- En desarrollo (5 puntos)\n"
-                            "- Desarrollado (8 puntos)\n"
-                            "- Excelencia (10 puntos)\n\n"
-                            "Justifica cada calificación brevemente. Finaliza con el promedio total y recomendaciones para mejorar. "
-                            "Responde como un evaluador experto de INNOVUG."
-                        )
+                    'role': 'user',
+                    'content': (
+                        "Evalúa esta propuesta de emprendimiento usando los siguientes criterios:\n\n"
+                        "1. Problema / Solución\n"
+                        "2. Mercado\n"
+                        "3. Competencia\n"
+                        "4. Modelo de negocio\n"
+                        "5. Escalabilidad\n"
+                        "6. Equipo\n\n"
+                        "Para cada criterio, asigna una calificación:\n"
+                        "- Inicial (2 puntos)\n"
+                        "- En desarrollo (5 puntos)\n"
+                        "- Desarrollado (8 puntos)\n"
+                        "- Excelencia (10 puntos)\n\n"
+                        "🔽 Devuelve los resultados en una tabla con tres columnas: **Criterio**, **Calificación**, **Justificación breve**.\n\n"
+                        "📊 Luego calcula el **promedio total de calificación sobre 10** (dividiendo entre 6).\n\n"
+                        "✅ Si la calificación es **10/10**, responde únicamente: \"La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones.\"\n\n"
+                        "⚠️ Si la calificación es menor a 10, incluye **5 recomendaciones claras y concretas** para mejorar la propuesta. Usa emojis o viñetas para destacarlas visualmente.\n\n"
+                        "Responde como un evaluador experto del Centro de Emprendimiento de INNOVUG."
+                    )
                 })
 
             except Exception as e:
