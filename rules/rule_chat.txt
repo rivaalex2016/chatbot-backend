@@ -58,7 +58,7 @@ Asigna una puntuación por criterio:
 - Si el PDF **no contiene contenido similar al formato oficial**, responde con:  
   "📄 El archivo enviado no parece una propuesta de emprendimiento válida.  
   Por favor, descarga y completa el formato oficial desde este enlace:  
-  👉 [Formato Propuesta PDF](https://onedrive.live.com/download?resid=D6FFEC819BE496C6!s0f5a341a744e46d7b68e009dd6c10e3b)"
+  👉 [Formato Propuesta WORD](https://www.dropbox.com/scl/fi/g9gtfg48htc6qcci3lofh/03.-FICHA-DE-EMPRENDORES_TELECOMUNICACIONES-IMPORTACIONES.docx?rlkey=k1rxpksx72ttdqjoc4i6pqk93&st=2lkozq0m&dl=1)"
 
 - Si el usuario pregunta si tienes un formato, responde afirmativamente y proporciona el mismo enlace.
 
