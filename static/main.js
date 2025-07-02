@@ -90,7 +90,6 @@ Responde como un evaluador experto del Centro de Emprendimiento INNOVUG.`;
 }
 
 
-
   if (message && !ocultarMensaje) addMessage(`Tú: ${message}`, "mensaje-usuario");
   if (file) addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
 
@@ -109,6 +108,8 @@ Responde como un evaluador experto del Centro de Emprendimiento INNOVUG.`;
     else if (ext === "csv") formData.append("csv", file);
     else if (ext === "xlsx") formData.append("xlsx", file);
   }
+formData.append("manual_input", (!ocultarMensaje).toString());
+
 
   const escribiendo = document.createElement("div");
   escribiendo.className = "mensaje-bot fade-in";
