@@ -48,24 +48,38 @@ chatForm.addEventListener("submit", async (e) => {
   }
 
   if (!message && !file) return;
-  if (!message && file) {
-    message = `Evalúa esta propuesta de emprendimiento usando los siguientes criterios:
+  
+if (!message && file) {
+  message = `Evalúa esta propuesta de emprendimiento con base en los siguientes criterios:
 
-  1. **Problema / Solución**: ¿Qué problema resuelve y cómo?
-  2. **Mercado**: ¿Está definido el mercado y su potencial?
-  3. **Competencia**: ¿Se identifica la competencia y se define una ventaja?
-  4. **Modelo de negocio**: ¿Está claro cómo generará ingresos?
-  5. **Escalabilidad**: ¿Puede crecer con eficiencia?
-  6. **Equipo**: ¿Quién lidera y ejecuta la propuesta?
+1. Problema / Solución
+2. Mercado
+3. Competencia
+4. Modelo de negocio
+5. Escalabilidad
+6. Equipo
 
-  Para cada criterio, asigna una puntuación:
-  - Inicial (2 puntos)
-  - En desarrollo (5 puntos)
-  - Desarrollado (8 puntos)
-  - Excelencia (10 puntos)
+Para cada criterio, asigna una calificación:
+- Inicial (2 puntos)
+- En desarrollo (5 puntos)
+- Desarrollado (8 puntos)
+- Excelencia (10 puntos)
 
-  Justifica cada calificación brevemente. Finaliza con el promedio total y recomendaciones para mejorar. Responde como un evaluador experto de INNOVUG.`;
-  }
+📋 Muestra los resultados en una tabla con tres columnas: Criterio, Calificación, y Justificación breve.
+
+📊 Calcula el promedio total de calificación sobre 10 (suma de puntajes dividido para 6).
+
+🔔 Según la calificación final:
+- Si es exactamente 10, responde únicamente:
+🏆 La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones.
+- Si está entre 8 y 9.9, agrega el emoji 👍 al promedio y brinda 5 recomendaciones breves para alcanzar la excelencia.
+- Si está entre 5 y 7.9, agrega ⚠️ y proporciona 5 recomendaciones claras para fortalecerla.
+- Si es menor a 5, agrega ❗ y proporciona 5 sugerencias urgentes para replantearla.
+
+🎯 Las recomendaciones deben ser útiles, prácticas y accionables. Usa viñetas o emojis para destacarlas.
+
+Responde como un evaluador experto del Centro de Emprendimiento INNOVUG.`;
+}
 
 
   if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");

@@ -1,7 +1,10 @@
+/* 📌 Contenedor del chat: define altura máxima y scroll vertical */
 #chat-output {
   max-height: 400px;
   overflow-y: auto;
 }
+
+/* 💬 Estilos base para mensajes del usuario y del bot */
 .mensaje-usuario,
 .mensaje-bot {
   padding: 8px 12px;
@@ -12,16 +15,22 @@
   text-align: left;
   display: inline-block;
 }
+
+/* ✅ Color de fondo para mensajes del usuario */
 .mensaje-usuario {
   background-color: #d1f8d6;
   align-self: flex-end;
   margin-left: auto;
 }
+
+/* 🤖 Color de fondo para mensajes del bot */
 .mensaje-bot {
   background-color: #f1f1f1;
   align-self: flex-start;
   margin-right: auto;
 }
+
+/* 🕒 Estilo de marca de tiempo (hora del mensaje) */
 .timestamp {
   font-size: 0.75rem;
   font-style: italic;
@@ -32,6 +41,8 @@
 .mensaje-usuario .timestamp {
   text-align: right !important;
 }
+
+/* ✨ Animación de aparición para nuevos mensajes */
 .fade-in {
   animation: fadeIn 0.4s ease-in-out;
 }
@@ -45,6 +56,8 @@
     transform: translateY(0);
   }
 }
+
+/* 📄 Estilo para la vista previa de archivos PDF */
 .preview-container {
   margin-top: 10px;
   max-height: 300px;
@@ -55,12 +68,11 @@
   height: 300px;
   border-radius: 8px;
 }
-.card {
-  border-radius: 20px;
-}
 #pdf-preview {
   display: none;
 }
+
+/* 📝 Entrada de texto y adjunto de archivos */
 .chat-input-wrapper {
   display: flex;
   align-items: center;
@@ -74,6 +86,8 @@
   flex-grow: 1;
   outline: none;
 }
+
+/* 🎯 Estilos para botones y etiquetas dentro del input */
 .chat-input-wrapper button,
 .chat-input-wrapper label {
   border: none;
@@ -88,12 +102,18 @@
 .chat-input-wrapper label:hover {
   color: #084298;
 }
+
+/* ✅ Color verde cuando hay texto listo para enviar */
 .chat-input-wrapper input[type="text"]:not(:placeholder-shown) ~ button {
   color: #198754;
 }
+
+/* ❌ Cambiar color cuando hay archivo adjunto */
 .chat-input-wrapper.attached label {
   color: #dc3545;
 }
+
+/* ✂️ Botón para eliminar archivo adjunto */
 .chat-input-wrapper .remove-file {
   position: absolute;
   right: 40px;
@@ -110,38 +130,49 @@
   display: block;
 }
 
-/* Estilos para mostrar correctamente el contenido Markdown en los mensajes del bot */
+/* 🎨 Estilo para mensajes del bot con contenido Markdown */
 .mensaje-bot strong {
   font-weight: bold;
 }
-
 .mensaje-bot em {
   font-style: italic;
 }
-
 .mensaje-bot ul, .mensaje-bot ol {
   padding-left: 1.5em;
   margin: 0.5em 0;
 }
-
 .mensaje-bot li {
   margin-bottom: 0.25em;
 }
-
 .mensaje-bot p {
   margin: 0.5em 0;
 }
-
 .mensaje-bot h1,
 .mensaje-bot h2,
 .mensaje-bot h3 {
   margin: 0.5em 0 0.25em;
   font-weight: bold;
 }
-
 .mensaje-bot code {
   font-family: monospace;
   background-color: #f0f0f0;
   padding: 2px 4px;
   border-radius: 4px;
+}
+
+/* 📊 Estilo para tablas Markdown del bot */
+.mensaje-bot table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+.mensaje-bot th,
+.mensaje-bot td {
+  border: 1px solid #ccc;
+  padding: 6px 8px;
+  text-align: left;
+}
+.mensaje-bot th {
+  background-color: #e9ecef;
+  font-weight: bold;
 }
