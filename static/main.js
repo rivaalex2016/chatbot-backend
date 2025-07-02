@@ -17,9 +17,12 @@ fileInput.addEventListener("change", () => {
       pdfPreview.innerHTML = `<embed src="${e.target.result}" type="application/pdf" />`;
     };
     reader.readAsDataURL(file);
+
+    userInput.disabled = true; // 🚫 bloquea input
   } else {
     pdfPreview.style.display = "none";
     pdfPreview.innerHTML = "";
+    userInput.disabled = false; // ✅ vuelve a habilitar
   }
 
   if (file) {
@@ -34,6 +37,7 @@ removeFileBtn.addEventListener("click", () => {
   chatWrapper.classList.remove("attached");
   pdfPreview.innerHTML = "";
   pdfPreview.style.display = "none";
+  userInput.disabled = false; // ✅ Rehabilita input
 });
 
 chatForm.addEventListener("submit", async (e) => {
@@ -48,10 +52,12 @@ chatForm.addEventListener("submit", async (e) => {
   }
 
   if (!message && !file) return;
-  
+
+let ocultarMensaje = false;
+
 if (!message && file) {
   message = `Evalúa esta propuesta de emprendimiento con base en los siguientes criterios:
-
+  
 1. Problema / Solución
 2. Mercado
 3. Competencia
@@ -79,10 +85,13 @@ Para cada criterio, asigna una calificación:
 🎯 Las recomendaciones deben ser útiles, prácticas y accionables. Usa viñetas o emojis para destacarlas.
 
 Responde como un evaluador experto del Centro de Emprendimiento INNOVUG.`;
+
+  ocultarMensaje = true;
 }
 
 
-  if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
+
+  if (message && !ocultarMensaje) addMessage(`Tú: ${message}`, "mensaje-usuario");
   if (file) addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
 
   userInput.value = "";

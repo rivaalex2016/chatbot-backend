@@ -176,3 +176,8 @@
   background-color: #e9ecef;
   font-weight: bold;
 }
+
+.chat-input-wrapper input[disabled] {
+  background-color: #e9ecef;
+  cursor: not-allowed;
+}

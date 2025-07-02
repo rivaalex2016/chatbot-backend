@@ -217,7 +217,9 @@ def chat():
 
         if user_message:
             user_contexts[identity].append({'role': 'user', 'content': user_message})
-            guardar_mensaje(identity, 'user', user_message)
+            if user_message and not (pdf_file and not request.form.get("manual_input")):
+                guardar_mensaje(identity, 'user', user_message)
+
 
         user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
         respuesta = openai_IA(user_contexts[identity])
