@@ -176,7 +176,7 @@ def chat():
                         "response": (
                             "📄 El archivo enviado no parece una propuesta de emprendimiento válida. "
                             "Por favor, descarga y completa el formato oficial desde este enlace: "
-                            "<a href='https://tusitio.com/formato_propuesta.pdf' target='_blank'>Formato Propuesta PDF</a>"
+                            "<a href='https://onedrive.live.com/download?resid=D6FFEC819BE496C6!s0f5a341a744e46d7b68e009dd6c10e3b' target='_blank'>Formato Propuesta WORD</a>"
                         )
                     })
 
