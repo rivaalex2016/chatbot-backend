@@ -17,7 +17,6 @@ fileInput.addEventListener("change", () => {
       pdfPreview.innerHTML = `<embed src="${e.target.result}" type="application/pdf" />`;
     };
     reader.readAsDataURL(file);
-
     userInput.disabled = true; // 🚫 bloquea input
   } else {
     pdfPreview.style.display = "none";
@@ -53,44 +52,9 @@ chatForm.addEventListener("submit", async (e) => {
 
   if (!message && !file) return;
 
-let ocultarMensaje = false;
+  const isManualInput = Boolean(message);
 
-if (!message && file) {
-  message = `Evalúa esta propuesta de emprendimiento con base en los siguientes criterios:
-  
-1. Problema / Solución
-2. Mercado
-3. Competencia
-4. Modelo de negocio
-5. Escalabilidad
-6. Equipo
-
-Para cada criterio, asigna una calificación:
-- Inicial (2 puntos)
-- En desarrollo (5 puntos)
-- Desarrollado (8 puntos)
-- Excelencia (10 puntos)
-
-📋 Muestra los resultados en una tabla con tres columnas: Criterio, Calificación, y Justificación breve.
-
-📊 Calcula el promedio total de calificación sobre 10 (suma de puntajes dividido para 6).
-
-🔔 Según la calificación final:
-- Si es exactamente 10, responde únicamente:
-🏆 La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones.
-- Si está entre 8 y 9.9, agrega el emoji 👍 al promedio y brinda 5 recomendaciones breves para alcanzar la excelencia.
-- Si está entre 5 y 7.9, agrega ⚠️ y proporciona 5 recomendaciones claras para fortalecerla.
-- Si es menor a 5, agrega ❗ y proporciona 5 sugerencias urgentes para replantearla.
-
-🎯 Las recomendaciones deben ser útiles, prácticas y accionables. Usa viñetas o emojis para destacarlas.
-
-Responde como un evaluador experto del Centro de Emprendimiento INNOVUG.`;
-
-  ocultarMensaje = true;
-}
-
-
-  if (message && !ocultarMensaje) addMessage(`Tú: ${message}`, "mensaje-usuario");
+  if (isManualInput) addMessage(`Tú: ${message}`, "mensaje-usuario");
   if (file) addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
 
   userInput.value = "";
@@ -103,14 +67,14 @@ Responde como un evaluador experto del Centro de Emprendimiento INNOVUG.`;
   const formData = new FormData();
   formData.append("message", message);
   formData.append("user_id", userId);
+  formData.append("manual_input", isManualInput.toString());
+
   if (file) {
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext === "pdf") formData.append("pdf", file);
     else if (ext === "csv") formData.append("csv", file);
     else if (ext === "xlsx") formData.append("xlsx", file);
   }
-formData.append("manual_input", (!ocultarMensaje).toString());
-
 
   const escribiendo = document.createElement("div");
   escribiendo.className = "mensaje-bot fade-in";
@@ -150,4 +114,3 @@ function addMessage(text, clase, isHtml = false) {
   chatOutput.appendChild(div);
   chatOutput.scrollTop = chatOutput.scrollHeight;
 }
-
