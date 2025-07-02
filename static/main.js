@@ -98,6 +98,7 @@ Responde como un evaluador experto del Centro de Emprendimiento INNOVUG.`;
   chatWrapper.classList.remove("attached");
   pdfPreview.innerHTML = "";
   pdfPreview.style.display = "none";
+  userInput.disabled = false;
 
   const formData = new FormData();
   formData.append("message", message);
