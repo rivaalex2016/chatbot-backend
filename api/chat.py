@@ -151,6 +151,8 @@ def chat():
         identity = request.form.get("user_id", "default_user")
         user_message = request.form.get("message", "")
         pdf_file = request.files.get("pdf")
+        manual_input = request.form.get("manual_input", "true").lower() == "true"
+
 
         if identity not in user_contexts:
             historial_prev = cargar_historial_por_identity(identity)
@@ -181,34 +183,35 @@ def chat():
                 })
                 guardar_mensaje(identity, 'user', uploaded_text)
 
-                # ✅ Instrucción clara a la IA para que actúe sobre el contenido
-                user_contexts[identity].append({
-                    'role': 'user',
-                    'content': (
-                        "Evalúa esta propuesta de emprendimiento con base en los siguientes criterios:\n\n"
-                        "1. Problema / Solución\n"
-                        "2. Mercado\n"
-                        "3. Competencia\n"
-                        "4. Modelo de negocio\n"
-                        "5. Escalabilidad\n"
-                        "6. Equipo\n\n"
-                        "Para cada criterio, asigna una calificación entre:\n"
-                        "- Inicial (2 puntos)\n"
-                        "- En desarrollo (5 puntos)\n"
-                        "- Desarrollado (8 puntos)\n"
-                        "- Excelencia (10 puntos)\n\n"
-                        "📋 Muestra los resultados en una **tabla** con tres columnas: **Criterio**, **Calificación**, y **Justificación breve**.\n\n"
-                        "📊 Calcula el **promedio total de calificación sobre 10** (sumando las puntuaciones y dividiendo entre 6).\n\n"
-                        "🔔 Según la calificación final:\n"
-                        "- Si es **exactamente 10**, responde únicamente:\n"
-                        "**🏆 La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones.**\n"
-                        "- Si la calificación está entre 8 y 9.9, agrega el emoji **👍** al promedio final y proporciona 5 recomendaciones breves para llevarla a la excelencia.\n"
-                        "- Si la calificación está entre 5 y 7.9, usa el emoji **⚠️** y proporciona 5 recomendaciones claras para fortalecerla.\n"
-                        "- Si la calificación es menor a 5, usa el emoji **❗** y brinda 5 sugerencias urgentes para replantear la propuesta.\n\n"
-                        "🎯 Las recomendaciones deben ser concretas, útiles y accionables. Usa viñetas o emojis para destacarlas.\n\n"
-                        "Responde como un evaluador experto del Centro de Emprendimiento INNOVUG."
-                    )
-                })
+                if not manual_input:
+                    user_contexts[identity].append({
+                        'role': 'user',
+                        'content': (
+                            "Evalúa esta propuesta de emprendimiento con base en los siguientes criterios:\n\n"
+                            "1. Problema / Solución\n"
+                            "2. Mercado\n"
+                            "3. Competencia\n"
+                            "4. Modelo de negocio\n"
+                            "5. Escalabilidad\n"
+                            "6. Equipo\n\n"
+                            "Para cada criterio, asigna una calificación entre:\n"
+                            "- Inicial (2 puntos)\n"
+                            "- En desarrollo (5 puntos)\n"
+                            "- Desarrollado (8 puntos)\n"
+                            "- Excelencia (10 puntos)\n\n"
+                            "📋 Muestra los resultados en una **tabla** con tres columnas: **Criterio**, **Calificación**, y **Justificación breve**.\n\n"
+                            "📊 Calcula el **promedio total de calificación sobre 10** (sumando las puntuaciones y dividiendo entre 6).\n\n"
+                            "🔔 Según la calificación final:\n"
+                            "- Si es **exactamente 10**, responde únicamente:\n"
+                            "**🏆 La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones.**\n"
+                            "- Si la calificación está entre 8 y 9.9, agrega el emoji **👍** al promedio final y proporciona 5 recomendaciones breves para llevarla a la excelencia.\n"
+                            "- Si la calificación está entre 5 y 7.9, usa el emoji **⚠️** y proporciona 5 recomendaciones claras para fortalecerla.\n"
+                            "- Si la calificación es menor a 5, usa el emoji **❗** y brinda 5 sugerencias urgentes para replantear la propuesta.\n\n"
+                            "🎯 Las recomendaciones deben ser concretas, útiles y accionables. Usa viñetas o emojis para destacarlas.\n\n"
+                            "Responde como un evaluador experto del Centro de Emprendimiento INNOVUG."
+                        )
+                    })
+
 
 
             except Exception as e:
