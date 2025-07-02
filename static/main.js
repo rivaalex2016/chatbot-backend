@@ -18,6 +18,7 @@ fileInput.addEventListener("change", () => {
     };
     reader.readAsDataURL(file);
     userInput.disabled = true; // 🚫 bloquea input
+    userInput.value = ""; // 🧹 Limpia cualquier mensaje previo al adjuntar el PDF
   } else {
     pdfPreview.style.display = "none";
     pdfPreview.innerHTML = "";
