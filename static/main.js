@@ -84,18 +84,29 @@ chatForm.addEventListener("submit", async (e) => {
     });
     const data = await response.json();
     document.getElementById("escribiendo").remove();
-    addMessage(`INNOVUG: ${data.response}`, "mensaje-bot");
+    addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
     botAudio.play();
   } catch (err) {
     addMessage(`Error: ${err.message}`, "mensaje-bot");
   }
 });
 
-function addMessage(text, clase) {
+function addMessage(text, clase, isHtml = false) {
   const div = document.createElement("div");
   div.className = clase + " fade-in";
   const hora = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  div.innerHTML = `${text}<span class='timestamp'>${hora}</span>`;
+
+  if (isHtml) {
+    div.innerHTML = `${text}<span class='timestamp'>${hora}</span>`;
+  } else {
+    div.textContent = `${text}`;
+    const span = document.createElement("span");
+    span.className = "timestamp";
+    span.textContent = hora;
+    div.appendChild(span);
+  }
+
   chatOutput.appendChild(div);
   chatOutput.scrollTop = chatOutput.scrollHeight;
 }
+
