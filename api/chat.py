@@ -176,7 +176,8 @@ def chat():
                         "response": (
                             "📄 El archivo enviado no parece una propuesta de emprendimiento válida. "
                             "Por favor, descarga y completa el formato oficial desde este enlace: "
-                            "<a href='https://www.dropbox.com/scl/fi/g9gtfg48htc6qcci3lofh/03.-FICHA-DE-EMPRENDORES_TELECOMUNICACIONES-IMPORTACIONES.docx?rlkey=k1rxpksx72ttdqjoc4i6pqk93&st=2lkozq0m&dl=1' target='_blank'>Formato Propuesta WORD</a>"
+                            "<a href='https://www.dropbox.com/scl/fi/iskiwu33svjddid38iu1j/FICHA-DE-EMPRENDEDORES_NOMBRE-NEGOCIO.docx?rlkey=ai510a5wfyfs7h4jzn2pvmoqz&st=8qlsljv0&dl=1' target='_blank'>Formato Propuesta WORD</a>"
+
                         )
                     })
 
