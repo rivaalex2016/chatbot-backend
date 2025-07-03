@@ -1,5 +1,4 @@
 window.onload = () => {
-  // 💥 Reiniciar sesión: forzar validación de cédula en cada recarga
   localStorage.removeItem("user_id");
   userId = null;
   mostrarSolicitudCedula();
@@ -8,7 +7,6 @@ window.onload = () => {
 
 let userId = null;
 
-// 🌐 Elementos del DOM
 const chatOutput = document.getElementById("chat-output");
 const chatForm = document.getElementById("chat-form");
 const userInput = document.getElementById("user-input");
@@ -44,7 +42,6 @@ window.guardarCedula = () => {
   addMessage(`Cédula registrada: ${userId}`, "mensaje-usuario");
   const inputBox = input.closest(".mensaje-bot");
   if (inputBox) inputBox.remove();
-
   enviarMensaje("");
 };
 
@@ -94,36 +91,54 @@ window.guardarNombre = () => {
 
 fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
+
   if (file && file.type === "application/pdf") {
+    // Verificar que ya se ingresó la cédula
+    if (!userId || !/^\d{10}$/.test(userId)) {
+      alert("Debes ingresar tu cédula antes de subir un archivo.");
+      fileInput.value = null;
+      pdfPreview.style.display = "none";
+      pdfPreview.innerHTML = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = function (e) {
       pdfPreview.style.display = "block";
       pdfPreview.innerHTML = `<embed src="${e.target.result}" type="application/pdf" />`;
     };
     reader.readAsDataURL(file);
+
+    chatWrapper.classList.add("attached");
     userInput.disabled = true;
     userInput.value = "";
+
+    addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
+    enviarMensaje("", file);
+
+    // Reiniciar para permitir volver a seleccionar el mismo archivo
+    fileInput.value = null;
   } else {
     pdfPreview.style.display = "none";
     pdfPreview.innerHTML = "";
-    userInput.disabled = false;
-  }
-
-  if (file) {
-    chatWrapper.classList.add("attached");
-
-    // ✅ Mostrar mensaje de archivo enviado
-    addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
-
-    // ✅ Enviar al backend
-    enviarMensaje("", file);
-  } else {
     chatWrapper.classList.remove("attached");
+    userInput.disabled = false;
   }
 });
 
+if (removeFileBtn) {
+  removeFileBtn.addEventListener("click", () => {
+    pdfPreview.style.display = "none";
+    pdfPreview.innerHTML = "";
+    fileInput.value = null;
+    chatWrapper.classList.remove("attached");
+    userInput.disabled = false;
+  });
+}
+
 chatForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+
   if (!userId || !/^\d{10}$/.test(userId)) {
     alert("Debes ingresar tu cédula antes de continuar.");
     return;
@@ -131,10 +146,10 @@ chatForm.addEventListener("submit", async (e) => {
 
   const message = userInput.value.trim();
   const file = fileInput.files[0];
+
   if (!message && !file) return;
 
   if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
-  if (file) addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
 
   userInput.value = "";
   fileInput.value = "";
