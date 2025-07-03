@@ -2,11 +2,42 @@ const chatOutput = document.getElementById("chat-output");
 const chatForm = document.getElementById("chat-form");
 const userInput = document.getElementById("user-input");
 const fileInput = document.getElementById("file-input");
-const userIdInput = document.getElementById("user-id");
 const pdfPreview = document.getElementById("pdf-preview");
 const botAudio = document.getElementById("bot-audio");
 const chatWrapper = document.querySelector('.chat-input-wrapper');
 const removeFileBtn = document.getElementById("remove-file");
+
+let userId = localStorage.getItem("user_id");
+
+// 🚀 Mostrar bienvenida inicial
+if (!userId) {
+  const bienvenida = document.createElement("div");
+  bienvenida.className = "mensaje-bot fade-in";
+  bienvenida.innerHTML = `
+    <p><strong>Hola, soy INNOVUG 🤖</strong><br>Tu asistente para emprender con éxito.</p>
+    <p>Para comenzar, por favor ingresa tu número de cédula:</p>
+    <input type="text" id="cedula-input" class="form-control mt-2" maxlength="10" pattern="\\d{10}" placeholder="Ej: 0912345678">
+    <button class="btn btn-sm btn-primary mt-2" onclick="guardarCedula()">Guardar</button>
+  `;
+  chatOutput.appendChild(bienvenida);
+  chatOutput.scrollTop = chatOutput.scrollHeight;
+  userInput.disabled = true;
+}
+
+window.guardarCedula = () => {
+  const input = document.getElementById("cedula-input");
+  const cedula = input.value.trim();
+  if (!/^\d{10}$/.test(cedula)) {
+    alert("Por favor ingresa una cédula válida de 10 dígitos.");
+    return;
+  }
+  userId = cedula;
+  localStorage.setItem("user_id", userId);
+  userInput.disabled = false;
+  addMessage(`Cédula registrada: ${userId}`, "mensaje-usuario");
+  const inputBox = input.closest(".mensaje-bot");
+  if (inputBox) inputBox.remove();
+};
 
 fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
@@ -17,19 +48,15 @@ fileInput.addEventListener("change", () => {
       pdfPreview.innerHTML = `<embed src="${e.target.result}" type="application/pdf" />`;
     };
     reader.readAsDataURL(file);
-    userInput.disabled = true; // 🚫 bloquea input
-    userInput.value = ""; // 🧹 Limpia cualquier mensaje previo al adjuntar el PDF
+    userInput.disabled = true;
+    userInput.value = "";
   } else {
     pdfPreview.style.display = "none";
     pdfPreview.innerHTML = "";
-    userInput.disabled = false; // ✅ vuelve a habilitar
+    userInput.disabled = false;
   }
-
-  if (file) {
-    chatWrapper.classList.add("attached");
-  } else {
-    chatWrapper.classList.remove("attached");
-  }
+  if (file) chatWrapper.classList.add("attached");
+  else chatWrapper.classList.remove("attached");
 });
 
 removeFileBtn.addEventListener("click", () => {
@@ -37,19 +64,18 @@ removeFileBtn.addEventListener("click", () => {
   chatWrapper.classList.remove("attached");
   pdfPreview.innerHTML = "";
   pdfPreview.style.display = "none";
-  userInput.disabled = false; // ✅ Rehabilita input
+  userInput.disabled = false;
 });
 
 chatForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  let message = userInput.value.trim();
-  const file = fileInput.files[0];
-  const userId = userIdInput.value.trim();
-
   if (!userId || !/^\d{10}$/.test(userId)) {
-    alert("Por favor ingresa un No. Cédula válido de 10 dígitos.");
+    alert("Debes ingresar tu cédula antes de continuar.");
     return;
   }
+
+  let message = userInput.value.trim();
+  const file = fileInput.files[0];
 
   if (!message && !file) return;
 
@@ -104,8 +130,6 @@ function addMessage(text, clase, isHtml = false) {
 
   if (isHtml) {
     div.innerHTML = `${text}<span class='timestamp'>${hora}</span>`;
-
-    // 🔗 Fuerza los enlaces a abrir en nueva pestaña
     const links = div.querySelectorAll("a");
     links.forEach(link => {
       link.setAttribute("target", "_blank");

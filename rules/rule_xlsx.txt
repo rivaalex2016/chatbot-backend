@@ -1,6 +1,0 @@
-Lamentablemente el archivo esta incorrecto, por favor asegurate que cumpla con lo siguiente y tenga datos completos.
-- Tener una hoja llamada "CRITERIOS DE EVALUACIÓN".
-- Incluir en las primeras filas los textos "UNIVERSIDAD DE GUAYAQUIL" y "INCUBADORA DE EMPRESAS INNOVUG".
-- Contener una sección titulada "CRITERIOS" que describa aspectos como "Problema / Solución", "Propuesta de valor", etc.
-- Incluir columnas de evaluación con los niveles: INICIAL 2, EN DESARROLLO 5, DESARROLLADO 8 y EXCELENCIA 10.
-Si el archivo no cumple con estos criterios o está incompleto explicale al usuario el porque de esto.

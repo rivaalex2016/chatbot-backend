@@ -181,3 +181,32 @@
   background-color: #e9ecef;
   cursor: not-allowed;
 }
+
+/* 🆔 Input de cédula dentro del mensaje del bot */
+#cedula-inline-input {
+  margin-top: 8px;
+  padding: 6px 10px;
+  font-size: 1rem;
+  border: 1px solid #ced4da;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 250px;
+  box-sizing: border-box;
+}
+
+/* 💾 Botón para enviar la cédula */
+#cedula-submit-btn {
+  margin-top: 6px;
+  display: inline-block;
+  background-color: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+#cedula-submit-btn:hover {
+  background-color: #084298;
+}

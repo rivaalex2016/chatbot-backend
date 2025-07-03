@@ -156,7 +156,7 @@ chat_blueprint = Blueprint('chat', __name__)
 @chat_blueprint.route('/chat', methods=['POST'])
 def chat():
     try:
-        identity = request.form.get("user_id", "default_user")
+        identity = request.form.get("user_id") or request.form.get("identity") or "default_user"
         user_message = request.form.get("message", "")
         pdf_file = request.files.get("pdf")
         manual_input = request.form.get("manual_input", "true").lower() == "true"
