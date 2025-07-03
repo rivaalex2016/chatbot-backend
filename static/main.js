@@ -104,6 +104,13 @@ function addMessage(text, clase, isHtml = false) {
 
   if (isHtml) {
     div.innerHTML = `${text}<span class='timestamp'>${hora}</span>`;
+
+    // 🔗 Fuerza los enlaces a abrir en nueva pestaña
+    const links = div.querySelectorAll("a");
+    links.forEach(link => {
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+    });
   } else {
     div.textContent = `${text}`;
     const span = document.createElement("span");
