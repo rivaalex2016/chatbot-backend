@@ -1,5 +1,11 @@
-// 💥 Reiniciar sesión: forzar validación de cédula en cada recarga
-localStorage.removeItem("user_id");
+window.onload = () => {
+  // 💥 Reiniciar sesión: forzar validación de cédula en cada recarga
+  localStorage.removeItem("user_id");
+  userId = null;
+  mostrarSolicitudCedula();
+  userInput.disabled = true;
+};
+
 let userId = null;
 
 // 🌐 Elementos del DOM
@@ -11,10 +17,6 @@ const pdfPreview = document.getElementById("pdf-preview");
 const botAudio = document.getElementById("bot-audio");
 const chatWrapper = document.querySelector('.chat-input-wrapper');
 const removeFileBtn = document.getElementById("remove-file");
-
-// 🚀 Siempre mostrar solicitud de cédula al cargar
-mostrarSolicitudCedula();
-userInput.disabled = true;
 
 function mostrarSolicitudCedula() {
   const bienvenida = document.createElement("div");
