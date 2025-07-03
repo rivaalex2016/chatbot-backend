@@ -1,4 +1,8 @@
-// ... elementos del DOM
+// 💥 Reiniciar sesión: forzar validación de cédula en cada recarga
+localStorage.removeItem("user_id");
+let userId = null;
+
+// 🌐 Elementos del DOM
 const chatOutput = document.getElementById("chat-output");
 const chatForm = document.getElementById("chat-form");
 const userInput = document.getElementById("user-input");
@@ -8,13 +12,9 @@ const botAudio = document.getElementById("bot-audio");
 const chatWrapper = document.querySelector('.chat-input-wrapper');
 const removeFileBtn = document.getElementById("remove-file");
 
-let userId = localStorage.getItem("user_id");
-
-// 🚀 Mostrar bienvenida inicial si no hay cédula
-if (!userId) {
-  mostrarSolicitudCedula();
-  userInput.disabled = true;
-}
+// 🚀 Siempre mostrar solicitud de cédula al cargar
+mostrarSolicitudCedula();
+userInput.disabled = true;
 
 function mostrarSolicitudCedula() {
   const bienvenida = document.createElement("div");
