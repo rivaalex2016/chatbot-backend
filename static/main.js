@@ -93,7 +93,6 @@ fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
 
   if (file && file.type === "application/pdf") {
-    // Verificar que ya se ingresó la cédula
     if (!userId || !/^\d{10}$/.test(userId)) {
       alert("Debes ingresar tu cédula antes de subir un archivo.");
       fileInput.value = null;
@@ -112,12 +111,6 @@ fileInput.addEventListener("change", () => {
     chatWrapper.classList.add("attached");
     userInput.disabled = true;
     userInput.value = "";
-
-    addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
-    enviarMensaje("", file);
-
-    // Reiniciar para permitir volver a seleccionar el mismo archivo
-    fileInput.value = null;
   } else {
     pdfPreview.style.display = "none";
     pdfPreview.innerHTML = "";
