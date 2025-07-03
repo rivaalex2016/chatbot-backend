@@ -1,3 +1,4 @@
+// ... elementos del DOM
 const chatOutput = document.getElementById("chat-output");
 const chatForm = document.getElementById("chat-form");
 const userInput = document.getElementById("user-input");
@@ -9,8 +10,13 @@ const removeFileBtn = document.getElementById("remove-file");
 
 let userId = localStorage.getItem("user_id");
 
-// 🚀 Mostrar bienvenida inicial
+// 🚀 Mostrar bienvenida inicial si no hay cédula
 if (!userId) {
+  mostrarSolicitudCedula();
+  userInput.disabled = true;
+}
+
+function mostrarSolicitudCedula() {
   const bienvenida = document.createElement("div");
   bienvenida.className = "mensaje-bot fade-in";
   bienvenida.innerHTML = `
@@ -21,7 +27,6 @@ if (!userId) {
   `;
   chatOutput.appendChild(bienvenida);
   chatOutput.scrollTop = chatOutput.scrollHeight;
-  userInput.disabled = true;
 }
 
 window.guardarCedula = () => {
@@ -37,6 +42,9 @@ window.guardarCedula = () => {
   addMessage(`Cédula registrada: ${userId}`, "mensaje-usuario");
   const inputBox = input.closest(".mensaje-bot");
   if (inputBox) inputBox.remove();
+
+  // Enviar saludo al backend para que inicie el flujo (verifica si ya hay nombre)
+  enviarMensaje("");
 };
 
 fileInput.addEventListener("change", () => {
@@ -74,14 +82,11 @@ chatForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  let message = userInput.value.trim();
+  const message = userInput.value.trim();
   const file = fileInput.files[0];
-
   if (!message && !file) return;
 
-  const isManualInput = Boolean(message);
-
-  if (isManualInput) addMessage(`Tú: ${message}`, "mensaje-usuario");
+  if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
   if (file) addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
 
   userInput.value = "";
@@ -91,17 +96,15 @@ chatForm.addEventListener("submit", async (e) => {
   pdfPreview.style.display = "none";
   userInput.disabled = false;
 
+  enviarMensaje(message, file);
+});
+
+async function enviarMensaje(message, file = null) {
   const formData = new FormData();
   formData.append("message", message);
   formData.append("user_id", userId);
-  formData.append("manual_input", isManualInput.toString());
-
-  if (file) {
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (ext === "pdf") formData.append("pdf", file);
-    else if (ext === "csv") formData.append("csv", file);
-    else if (ext === "xlsx") formData.append("xlsx", file);
-  }
+  formData.append("manual_input", (!!message).toString());
+  if (file) formData.append("pdf", file);
 
   const escribiendo = document.createElement("div");
   escribiendo.className = "mensaje-bot fade-in";
@@ -121,7 +124,7 @@ chatForm.addEventListener("submit", async (e) => {
   } catch (err) {
     addMessage(`Error: ${err.message}`, "mensaje-bot");
   }
-});
+}
 
 function addMessage(text, clase, isHtml = false) {
   const div = document.createElement("div");
