@@ -207,8 +207,11 @@ def chat():
                             "- En desarrollo (5 puntos)\n"
                             "- Desarrollado (8 puntos)\n"
                             "- Excelencia (10 puntos)\n\n"
-                            "📋 Muestra los resultados en una **tabla** con tres columnas: **Criterio**, **Calificación**, y **Justificación breve**.\n\n"
-                            "📊 Calcula el **promedio total de calificación sobre 10** (sumando las puntuaciones y dividiendo entre 6).\n\n"
+                            "📋 Muestra los resultados en una **tabla** con tres columnas: **Criterio**, **Calificación (con puntos)**, y **Justificación breve**.\n\n"
+                            "📊 Luego, **explica el cálculo del promedio** de esta forma:\n"
+                            "- Suma total de los puntos asignados\n"
+                            "- Número de criterios evaluados\n"
+                            "- Resultado final: promedio X.XX / 10\n\n"
                             "🔔 Según la calificación final:\n"
                             "- Si es **exactamente 10**, responde únicamente:\n"
                             "**🏆 La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones.**\n"
@@ -219,7 +222,6 @@ def chat():
                             "Responde como un evaluador experto del Centro de Emprendimiento INNOVUG."
                         )
                     })
-
 
 
             except Exception as e:

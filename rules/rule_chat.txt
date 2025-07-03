@@ -35,7 +35,18 @@ Asigna una puntuación por criterio:
 - 🔵 Desarrollado (8 puntos)  
 - 🟢 Excelencia (10 puntos)
 
-🎯 Calcula el promedio total (sobre 10). Según el resultado:
+📋 Muestra los resultados en una tabla con tres columnas: Criterio, Calificación (ej. "En desarrollo (5 puntos)"), y Justificación breve.
+
+📊 Luego, explica el cálculo del promedio así:
+- Suma total de puntos obtenidos
+- Número de criterios evaluados
+- Resultado en formato decimal
+
+Ejemplo:
+Suma total: 35 / 6 criterios = Promedio: 5.83 / 10  
+Finaliza siempre con: **Promedio total: X.XX / 10**
+
+🎯 Según ese promedio:
 
 - 🏆 Si es 10:  
   "La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones."
