@@ -201,9 +201,17 @@ def chat():
                 guardar_mensaje(identity, "assistant", saludo)
                 return jsonify({"response": saludo})
 
+        # 👋 Si el usuario ya tiene nombre y no envía mensaje, dar saludo personalizado
+        if user_name and not user_message:
+            saludo = f"👋 ¡Hola de nuevo, {user_name}! ¿En qué puedo ayudarte hoy?"
+            user_contexts.setdefault(identity, []).append({"role": "assistant", "content": saludo})
+            guardar_mensaje(identity, "assistant", saludo)
+            return jsonify({"response": saludo})
+
         # Si es la primera vez que entra
         if identity not in user_contexts:
             user_contexts[identity] = cargar_historial_por_identity(identity)
+            user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
 
         if not user_name:
             bienvenida = (
@@ -213,13 +221,6 @@ def chat():
             user_contexts[identity].append({"role": "assistant", "content": bienvenida})
             guardar_mensaje(identity, "assistant", bienvenida)
             return jsonify({"response": bienvenida})
-
-        # Mostrar saludo al iniciar sesión siempre, una sola vez por sesión
-        if not any(m['content'].startswith("👋 ¡Hola de nuevo") for m in user_contexts[identity]):
-            saludo = f"👋 ¡Hola de nuevo, {user_name}! ¿En qué puedo ayudarte hoy?"
-            user_contexts[identity].append({"role": "assistant", "content": saludo})
-            guardar_mensaje(identity, "assistant", saludo)
-
 
         # Procesar archivo PDF
         if pdf_file and pdf_file.filename.endswith(".pdf"):
@@ -267,8 +268,7 @@ def chat():
 
         if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[identity]):
             user_contexts[identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
-
-        user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
+            
         respuesta = openai_IA(user_contexts[identity])
         user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
         guardar_mensaje(identity, 'assistant', respuesta)
