@@ -43,8 +43,51 @@ window.guardarCedula = () => {
   const inputBox = input.closest(".mensaje-bot");
   if (inputBox) inputBox.remove();
 
-  // Enviar saludo al backend para que inicie el flujo (verifica si ya hay nombre)
   enviarMensaje("");
+};
+
+function mostrarSolicitudNombre() {
+  const mensajeNombre = document.createElement("div");
+  mensajeNombre.className = "mensaje-bot fade-in";
+  mensajeNombre.innerHTML = `
+    <p>¡Gracias! Ahora, por favor ingresa tu <strong>nombre completo</strong>:</p>
+    <input type="text" id="nombre-input" class="form-control mt-2" placeholder="Ej: Juan Pérez" />
+    <button id="nombre-submit-btn" onclick="guardarNombre()">Guardar</button>
+  `;
+  chatOutput.appendChild(mensajeNombre);
+  chatOutput.scrollTop = chatOutput.scrollHeight;
+}
+
+window.guardarNombre = () => {
+  const input = document.getElementById("nombre-input");
+  const nombre = input.value.trim();
+
+  if (nombre.split(" ").length < 2) {
+    alert("Por favor ingresa tu nombre completo (nombre y apellido).");
+    return;
+  }
+
+  addMessage(`Nombre registrado: ${nombre}`, "mensaje-usuario");
+
+  const formData = new FormData();
+  formData.append("user_id", userId);
+  formData.append("message", nombre);
+
+  fetch("https://chatbot-backend-nqls.onrender.com/api/chat", {
+    method: "POST",
+    body: formData,
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
+      botAudio.play();
+    })
+    .catch((err) => {
+      addMessage(`Error: ${err.message}`, "mensaje-bot");
+    });
+
+  const mensaje = input.closest(".mensaje-bot");
+  if (mensaje) mensaje.remove();
 };
 
 fileInput.addEventListener("change", () => {
@@ -138,6 +181,14 @@ function addMessage(text, clase, isHtml = false) {
       link.setAttribute("target", "_blank");
       link.setAttribute("rel", "noopener noreferrer");
     });
+
+    if (
+      clase === "mensaje-bot" &&
+      text.toLowerCase().includes("por favor ingresa tu nombre completo")
+    ) {
+      setTimeout(() => mostrarSolicitudNombre(), 300);
+    }
+
   } else {
     div.textContent = `${text}`;
     const span = document.createElement("span");
