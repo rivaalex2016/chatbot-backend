@@ -214,10 +214,12 @@ def chat():
             guardar_mensaje(identity, "assistant", bienvenida)
             return jsonify({"response": bienvenida})
 
-        if not user_contexts[identity]:
+        # Mostrar saludo al iniciar sesión siempre, una sola vez por sesión
+        if not any(m['content'].startswith("👋 ¡Hola de nuevo") for m in user_contexts[identity]):
             saludo = f"👋 ¡Hola de nuevo, {user_name}! ¿En qué puedo ayudarte hoy?"
             user_contexts[identity].append({"role": "assistant", "content": saludo})
             guardar_mensaje(identity, "assistant", saludo)
+
 
         # Procesar archivo PDF
         if pdf_file and pdf_file.filename.endswith(".pdf"):
