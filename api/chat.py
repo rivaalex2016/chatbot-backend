@@ -187,12 +187,9 @@ def chat():
         identity = request.form.get("user_id") or request.form.get("identity") or "default_user"
         user_message = request.form.get("message", "").strip()
         pdf_file = request.files.get("pdf")
-        manual_input = request.form.get("manual_input", "true").lower() == "true"
 
-        # Buscar nombre
         user_name = get_user_name(identity)
 
-        # Si no hay nombre, interpretar el mensaje como nombre
         if not user_name and user_message:
             if not user_message.isdigit() and len(user_message.split()) >= 2:
                 set_user_name(identity, user_message.title())
@@ -201,17 +198,14 @@ def chat():
                 guardar_mensaje(identity, "assistant", saludo)
                 return jsonify({"response": saludo})
 
-        # 👋 Si el usuario ya tiene nombre y no envía mensaje, dar saludo personalizado
-        if user_name and not user_message:
+        if user_name and not user_message and not pdf_file:
             saludo = f"👋 ¡Hola de nuevo, {user_name}! ¿En qué puedo ayudarte hoy?"
             user_contexts.setdefault(identity, []).append({"role": "assistant", "content": saludo})
             guardar_mensaje(identity, "assistant", saludo)
             return jsonify({"response": saludo})
 
-        # Si es la primera vez que entra
         if identity not in user_contexts:
-            user_contexts[identity] = cargar_historial_por_identity(identity)
-            user_contexts[identity] = user_contexts[identity][-MAX_CONTEXT_LENGTH:]
+            user_contexts[identity] = cargar_historial_por_identity(identity)[-MAX_CONTEXT_LENGTH:]
 
         if not user_name:
             bienvenida = (
@@ -222,53 +216,48 @@ def chat():
             guardar_mensaje(identity, "assistant", bienvenida)
             return jsonify({"response": bienvenida})
 
-        # Procesar archivo PDF
         if pdf_file and pdf_file.filename.endswith(".pdf"):
             try:
                 uploaded_text = extract_text_from_pdf(pdf_file)
                 if not compare_pdfs(REFERENCE_TEXT, uploaded_text):
-                    return jsonify({
-                        "response": (
-                            "📄 El archivo enviado no parece una propuesta de emprendimiento válida. "
-                            "Por favor, descarga y completa el formato oficial desde este enlace: "
-                            "<a href='https://www.dropbox.com/scl/fi/iskiwu33svjddid38iu1j/FICHA-DE-EMPRENDEDORES_NOMBRE-NEGOCIO.docx?rlkey=ai510a5wfyfs7h4jzn2pvmoqz&st=8qlsljv0&dl=1' target='_blank'>Formato Propuesta WORD</a>"
-                        )
-                    })
+                    return jsonify({"response": (
+                        "📄 El archivo enviado no parece una propuesta de emprendimiento válida. "
+                        "Por favor, descarga y completa el formato oficial desde este enlace: "
+                        "<a href='https://www.dropbox.com/scl/fi/iskiwu33svjddid38iu1j/FICHA-DE-EMPRENDEDORES_NOMBRE-NEGOCIO.docx?rlkey=ai510a5wfyfs7h4jzn2pvmoqz&st=8qlsljv0&dl=1' target='_blank'>Formato Propuesta WORD</a>"
+                    )})
 
                 datos_extraidos = extraer_datos_pdf(uploaded_text)
                 upsert_pdf_data(identity, datos_extraidos)
                 user_contexts[identity].append({'role': 'user', 'content': f"DATOS EXTRAÍDOS DEL PDF:\n{uploaded_text}"})
                 guardar_mensaje(identity, 'user', uploaded_text)
 
-                if not manual_input:
-                    evaluacion_prompt = (
-                        "Evalúa esta propuesta de emprendimiento con base en los siguientes criterios:\n\n"
-                        "1. Problema / Solución\n2. Mercado\n3. Competencia\n4. Modelo de negocio\n5. Escalabilidad\n6. Equipo\n\n"
-                        "Para cada criterio, asigna una calificación entre:\n- Inicial (2 puntos)\n- En desarrollo (5 puntos)\n"
-                        "- Desarrollado (8 puntos)\n- Excelencia (10 puntos)\n\n"
-                        "📋 Muestra los resultados en una **tabla** con tres columnas: **Criterio**, **Calificación (con puntos)**, y **Justificación breve**.\n\n"
-                        "📊 Luego, **explica el cálculo del promedio** de esta forma:\n"
-                        "- Suma total de los puntos asignados\n- Número de criterios evaluados\n- Resultado final: promedio X.XX / 10\n\n"
-                        "🔔 Según la calificación final:\n"
-                        "- Si es **exactamente 10**, responde únicamente:\n"
-                        "**🏆 La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones.**\n"
-                        "- Si la calificación está entre 8 y 9.9, agrega el emoji **👍** al promedio final y proporciona 5 recomendaciones breves para llevarla a la excelencia.\n"
-                        "- Si la calificación está entre 5 y 7.9, usa el emoji **⚠️** y proporciona 5 recomendaciones claras para fortalecerla.\n"
-                        "- Si la calificación es menor a 5, usa el emoji **❗** y brinda 5 sugerencias urgentes para replantear la propuesta.\n\n"
-                        "🎯 Las recomendaciones deben ser concretas, útiles y accionables. Usa viñetas o emojis para destacarlas.\n\n"
-                        "Responde como un evaluador experto del Centro de Emprendimiento INNOVUG."
-                    )
-                    
-                    user_contexts[identity].append({'role': 'user', 'content': evaluacion_prompt})
-                    guardar_mensaje(identity, 'user', evaluacion_prompt)
+                evaluacion_prompt = (
+                    "Evalúa esta propuesta de emprendimiento con base en los siguientes criterios:\n\n"
+                    "1. Problema / Solución\n2. Mercado\n3. Competencia\n4. Modelo de negocio\n5. Escalabilidad\n6. Equipo\n\n"
+                    "Para cada criterio, asigna una calificación entre:\n- Inicial (2 puntos)\n- En desarrollo (5 puntos)\n"
+                    "- Desarrollado (8 puntos)\n- Excelencia (10 puntos)\n\n"
+                    "📋 Muestra los resultados en una **tabla** con tres columnas: **Criterio**, **Calificación (con puntos)**, y **Justificación breve**.\n\n"
+                    "📊 Luego, **explica el cálculo del promedio** de esta forma:\n"
+                    "- Suma total de los puntos asignados\n- Número de criterios evaluados\n- Resultado final: promedio X.XX / 10\n\n"
+                    "🔔 Según la calificación final:\n"
+                    "- Si es **exactamente 10**, responde únicamente:\n"
+                    "**🏆 La propuesta ha alcanzado la calificación perfecta de 10/10. No se requieren recomendaciones.**\n"
+                    "- Si la calificación está entre 8 y 9.9, agrega el emoji **👍** al promedio final y proporciona 5 recomendaciones breves para llevarla a la excelencia.\n"
+                    "- Si la calificación está entre 5 y 7.9, usa el emoji **⚠️** y proporciona 5 recomendaciones claras para fortalecerla.\n"
+                    "- Si la calificación es menor a 5, usa el emoji **❗** y brinda 5 sugerencias urgentes para replantear la propuesta.\n\n"
+                    "🌟 Las recomendaciones deben ser concretas, útiles y accionables. Usa viñetas o emojis para destacarlas.\n\n"
+                    "Responde como un evaluador experto del Centro de Emprendimiento INNOVUG."
+                )
+                user_contexts[identity].append({'role': 'user', 'content': evaluacion_prompt})
+                guardar_mensaje(identity, 'user', evaluacion_prompt)
 
-                    if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[identity]):
-                        user_contexts[identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
+                if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[identity]):
+                    user_contexts[identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
 
-                    respuesta = openai_IA(user_contexts[identity])
-                    user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
-                    guardar_mensaje(identity, 'assistant', respuesta)
-                    return jsonify({"response": respuesta})
+                respuesta = openai_IA(user_contexts[identity])
+                user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
+                guardar_mensaje(identity, 'assistant', respuesta)
+                return jsonify({"response": respuesta})
 
             except Exception as e:
                 return jsonify({"response": f"Error procesando PDF: {str(e)}"})
@@ -279,7 +268,7 @@ def chat():
 
         if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[identity]):
             user_contexts[identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
-            
+
         respuesta = openai_IA(user_contexts[identity])
         user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
         guardar_mensaje(identity, 'assistant', respuesta)
