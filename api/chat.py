@@ -241,7 +241,7 @@ def chat():
                 guardar_mensaje(identity, 'user', uploaded_text)
 
                 if not manual_input:
-                    user_contexts[identity].append({'role': 'user', 'content': (
+                    evaluacion_prompt = (
                         "Evalúa esta propuesta de emprendimiento con base en los siguientes criterios:\n\n"
                         "1. Problema / Solución\n2. Mercado\n3. Competencia\n4. Modelo de negocio\n5. Escalabilidad\n6. Equipo\n\n"
                         "Para cada criterio, asigna una calificación entre:\n- Inicial (2 puntos)\n- En desarrollo (5 puntos)\n"
@@ -257,7 +257,18 @@ def chat():
                         "- Si la calificación es menor a 5, usa el emoji **❗** y brinda 5 sugerencias urgentes para replantear la propuesta.\n\n"
                         "🎯 Las recomendaciones deben ser concretas, útiles y accionables. Usa viñetas o emojis para destacarlas.\n\n"
                         "Responde como un evaluador experto del Centro de Emprendimiento INNOVUG."
-                    )})
+                    )
+                    
+                    user_contexts[identity].append({'role': 'user', 'content': evaluacion_prompt})
+                    guardar_mensaje(identity, 'user', evaluacion_prompt)
+
+                    if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[identity]):
+                        user_contexts[identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
+
+                    respuesta = openai_IA(user_contexts[identity])
+                    user_contexts[identity].append({'role': 'assistant', 'content': respuesta})
+                    guardar_mensaje(identity, 'assistant', respuesta)
+                    return jsonify({"response": respuesta})
 
             except Exception as e:
                 return jsonify({"response": f"Error procesando PDF: {str(e)}"})

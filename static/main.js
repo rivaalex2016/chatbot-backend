@@ -108,16 +108,18 @@ fileInput.addEventListener("change", () => {
     pdfPreview.innerHTML = "";
     userInput.disabled = false;
   }
-  if (file) chatWrapper.classList.add("attached");
-  else chatWrapper.classList.remove("attached");
-});
 
-removeFileBtn.addEventListener("click", () => {
-  fileInput.value = "";
-  chatWrapper.classList.remove("attached");
-  pdfPreview.innerHTML = "";
-  pdfPreview.style.display = "none";
-  userInput.disabled = false;
+  if (file) {
+    chatWrapper.classList.add("attached");
+
+    // ✅ Mostrar mensaje de archivo enviado
+    addMessage(`Tú (archivo): ${file.name}`, "mensaje-usuario");
+
+    // ✅ Enviar al backend
+    enviarMensaje("", file);
+  } else {
+    chatWrapper.classList.remove("attached");
+  }
 });
 
 chatForm.addEventListener("submit", async (e) => {
