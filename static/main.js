@@ -1,11 +1,27 @@
-window.onload = () => {
-  localStorage.removeItem("user_id");
-  userId = null;
-  mostrarSolicitudCedula();
-  userInput.disabled = true;
-};
+// 🌐 URL dinámica (local o producción)
+const API_BASE = window.location.hostname.includes("localhost") || window.location.hostname === "127.0.0.1"
+  ? "http://127.0.0.1:5000"
+  : "https://chatbot-backend-nqls.onrender.com";
+
 
 let userId = null;
+
+window.onload = () => {
+  userId = localStorage.getItem("user_id");
+
+  const cerrarBtn = document.getElementById("cerrar-sesion");
+
+  if (userId) {
+    userInput.disabled = true; // se activa luego de detectar nombre en ping
+    enviarMensaje("__ping__");
+    cerrarBtn.style.display = "inline-block";
+  } else {
+    mostrarSolicitudCedula();
+    userInput.disabled = true;
+    cerrarBtn.style.display = "none";
+  }
+};
+
 
 const chatOutput = document.getElementById("chat-output");
 const chatForm = document.getElementById("chat-form");
@@ -15,6 +31,27 @@ const pdfPreview = document.getElementById("pdf-preview");
 const botAudio = document.getElementById("bot-audio");
 const chatWrapper = document.querySelector('.chat-input-wrapper');
 const removeFileBtn = document.getElementById("remove-file");
+
+function mostrarNombreUsuario(nombre) {
+  const nombreSpan = document.getElementById("nombre-usuario");
+  const contenedor = document.getElementById("usuario-info");
+
+  nombreSpan.textContent = `👤 Bienvenido, ${nombre}`;
+  contenedor.style.display = "inline-flex";
+}
+
+function cerrarSesion() {
+  const confirmar = confirm("¿Estás seguro de que quieres cerrar sesión?");
+  if (confirmar) {
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("nombre_usuario");
+    document.getElementById("usuario-info").style.display = "none";
+    location.reload();
+  }
+}
+
+document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion);
+
 
 function mostrarSolicitudCedula() {
   const bienvenida = document.createElement("div");
@@ -29,33 +66,26 @@ function mostrarSolicitudCedula() {
   chatOutput.scrollTop = chatOutput.scrollHeight;
 }
 
+
+
 window.guardarCedula = () => {
   const input = document.getElementById("cedula-input");
   const cedula = input.value.trim();
+
   if (!/^\d{10}$/.test(cedula)) {
     alert("Por favor ingresa una cédula válida de 10 dígitos.");
     return;
   }
+
   userId = cedula;
   localStorage.setItem("user_id", userId);
-  userInput.disabled = false;
   addMessage(`Cédula registrada: ${userId}`, "mensaje-usuario");
+
   const inputBox = input.closest(".mensaje-bot");
   if (inputBox) inputBox.remove();
-  enviarMensaje("");
-};
 
-function mostrarSolicitudNombre() {
-  const mensajeNombre = document.createElement("div");
-  mensajeNombre.className = "mensaje-bot fade-in";
-  mensajeNombre.innerHTML = `
-    <p>¡Gracias! Ahora, por favor ingresa tu <strong>nombre completo</strong>:</p>
-    <input type="text" id="nombre-input" class="form-control mt-2" placeholder="Ej: Juan Pérez" />
-    <button id="nombre-submit-btn" onclick="guardarNombre()">Guardar</button>
-  `;
-  chatOutput.appendChild(mensajeNombre);
-  chatOutput.scrollTop = chatOutput.scrollHeight;
-}
+  enviarMensaje("__ping__"); // Verifica si ya tiene nombre
+};
 
 window.guardarNombre = () => {
   const input = document.getElementById("nombre-input");
@@ -68,26 +98,64 @@ window.guardarNombre = () => {
 
   addMessage(`Nombre registrado: ${nombre}`, "mensaje-usuario");
 
+  // Mostrar mensaje de "escribiendo..." antes del fetch
+  const escribiendo = document.createElement("div");
+  escribiendo.className = "mensaje-bot fade-in";
+  escribiendo.id = "escribiendo";
+  escribiendo.innerHTML = "<em>Escribiendo...</em>";
+  chatOutput.appendChild(escribiendo);
+
   const formData = new FormData();
   formData.append("user_id", userId);
   formData.append("message", nombre);
+  formData.append("etapa", "nombre");
 
-  fetch("https://chatbot-backend-nqls.onrender.com/api/chat", {
+  fetch(`${API_BASE}/api/chat`, {
     method: "POST",
     body: formData,
   })
     .then((res) => res.json())
     .then((data) => {
+      document.getElementById("escribiendo")?.remove();
       addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
       botAudio.play();
+
+      // ✅ Guardar nombre en localStorage
+      localStorage.setItem("nombre_usuario", nombre);
+
+      // ✅ Habilitar input
+      userInput.disabled = false;
+
+      // ✅ Mostrar nombre y botón
+      mostrarNombreUsuario(nombre);
+      document.getElementById("cerrar-sesion").style.display = "inline-block";
     })
     .catch((err) => {
+      document.getElementById("escribiendo")?.remove();
       addMessage(`Error: ${err.message}`, "mensaje-bot");
     });
 
+  // ✅ Eliminar input del nombre
   const mensaje = input.closest(".mensaje-bot");
   if (mensaje) mensaje.remove();
 };
+
+function mostrarSolicitudNombre() {
+  const mensajeNombre = document.createElement("div");
+  mensajeNombre.className = "mensaje-bot fade-in";
+  mensajeNombre.innerHTML = `
+    <p>¡Gracias! Ahora, por favor ingresa tu <strong>nombre completo</strong>:</p>
+    <input type="text" id="nombre-input" class="form-control mt-2" placeholder="Ej: Juan Pérez" />
+    <button id="nombre-submit-btn" onclick="guardarNombre()">Guardar</button>
+  `;
+  chatOutput.appendChild(mensajeNombre);
+  chatOutput.scrollTop = chatOutput.scrollHeight;
+
+  // Enfocar automáticamente el input
+  setTimeout(() => {
+    document.getElementById("nombre-input")?.focus();
+  }, 100);
+}
 
 fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
@@ -168,15 +236,43 @@ async function enviarMensaje(message, file = null) {
   chatOutput.appendChild(escribiendo);
 
   try {
-    const response = await fetch("https://chatbot-backend-nqls.onrender.com/api/chat", {
+    const response = await fetch(`${API_BASE}/api/chat`, {
       method: "POST",
       body: formData
     });
+
     const data = await response.json();
-    document.getElementById("escribiendo").remove();
+    document.getElementById("escribiendo")?.remove();
+
+    // 🔎 Si el mensaje fue __ping__, buscar el nombre en la respuesta
+    if (message === "__ping__") {
+      const nombreDetectado = data.nombre?.trim();
+
+      if (nombreDetectado) {
+        localStorage.setItem("nombre_usuario", nombreDetectado);
+        mostrarNombreUsuario(nombreDetectado);
+        userInput.disabled = false;
+        document.getElementById("cerrar-sesion").style.display = "inline-block";
+      }
+
+      addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
+      return;
+    }
+
+    // Si no es ping, proceso normal
     addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
     botAudio.play();
+
+    // También detectar nombre desde el mensaje si aplica
+    const match = data.response.match(/Hola de nuevo,\s*(.+?)!/i);
+    if (match && match[1]) {
+      const nombre = match[1].trim();
+      localStorage.setItem("nombre_usuario", nombre);
+      mostrarNombreUsuario(nombre);
+    }
+
   } catch (err) {
+    document.getElementById("escribiendo")?.remove();
     addMessage(`Error: ${err.message}`, "mensaje-bot");
   }
 }

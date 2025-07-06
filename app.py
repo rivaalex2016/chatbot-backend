@@ -15,7 +15,7 @@ CORS(app, resources={r"/api/*": {
     "origins": [
         "https://innovug.ug.edu.ec",  # WordPress oficial
         "http://127.0.0.1:5500",      # localhost pruebas
-        "http://localhost:5500"
+        "http://localhost:5500"     
     ]
 }})
 
