@@ -5,23 +5,40 @@ const API_BASE = window.location.hostname.includes("localhost") || window.locati
 
 
 let userId = null;
+let temporizadorSesionId = null;
 
 window.onload = () => {
   userId = localStorage.getItem("user_id");
 
   const cerrarBtn = document.getElementById("cerrar-sesion");
 
+  const inicioSesion = localStorage.getItem("session_start");
+  const ahora = Date.now();
+  const duracionSesion = 10 * 60 * 1000; // 10 minutos
+
+  if (userId && inicioSesion && (ahora - parseInt(inicioSesion, 10)) > duracionSesion) {
+    alert("🔒 Tu sesión ha expirado por inactividad.");
+    cerrarSesion(true);
+    return;
+  }
+
   if (userId) {
-    userInput.disabled = true; // se activa luego de detectar nombre en ping
+    userInput.disabled = true;
     enviarMensaje("__ping__");
     cerrarBtn.style.display = "inline-block";
+
+    // 🛠️ Si no hay session_start, lo inicializamos ahora
+    if (!inicioSesion) {
+      localStorage.setItem("session_start", Date.now().toString());
+    }
+
+    iniciarTemporizadorSesion(); // ✅ Siempre iniciamos el temporizador
   } else {
     mostrarSolicitudCedula();
     userInput.disabled = true;
     cerrarBtn.style.display = "none";
   }
 };
-
 
 const chatOutput = document.getElementById("chat-output");
 const chatForm = document.getElementById("chat-form");
@@ -40,14 +57,26 @@ function mostrarNombreUsuario(nombre) {
   contenedor.style.display = "inline-flex";
 }
 
-function cerrarSesion() {
-  const confirmar = confirm("¿Estás seguro de que quieres cerrar sesión?");
-  if (confirmar) {
-    localStorage.removeItem("user_id");
-    localStorage.removeItem("nombre_usuario");
-    document.getElementById("usuario-info").style.display = "none";
-    location.reload();
+function cerrarSesion(forzado = false) {
+  if (!forzado) {
+    const confirmar = confirm("¿Estás seguro de que quieres cerrar sesión?");
+    if (!confirmar) return;
   }
+
+  // Limpia datos de sesión
+  localStorage.removeItem("user_id");
+  localStorage.removeItem("nombre_usuario");
+  localStorage.removeItem("session_start");
+
+  // 🧽 Limpiar el contador visual también
+  const timerEl = document.getElementById("temporizador-sesion");
+  if (timerEl) {
+    timerEl.textContent = "";
+    timerEl.classList.remove("alerta"); // si estaba en rojo
+  }
+
+  document.getElementById("usuario-info").style.display = "none";
+  location.reload();
 }
 
 document.getElementById("cerrar-sesion").addEventListener("click", cerrarSesion);
@@ -63,10 +92,8 @@ function mostrarSolicitudCedula() {
     <button class="btn btn-sm btn-primary mt-2" onclick="guardarCedula()">Guardar</button>
   `;
   chatOutput.appendChild(bienvenida);
-  chatOutput.scrollTop = chatOutput.scrollHeight;
+  scrollChatToBottom();
 }
-
-
 
 window.guardarCedula = () => {
   const input = document.getElementById("cedula-input");
@@ -84,8 +111,69 @@ window.guardarCedula = () => {
   const inputBox = input.closest(".mensaje-bot");
   if (inputBox) inputBox.remove();
 
+  const yaTieneNombre = localStorage.getItem("nombre_usuario");
+
   enviarMensaje("__ping__"); // Verifica si ya tiene nombre
+
+  // 🛠️ Si ya tiene nombre, iniciar sesión y temporizador
+  if (yaTieneNombre) {
+    localStorage.setItem("session_start", Date.now().toString());
+    iniciarTemporizadorSesion();
+    document.getElementById("cerrar-sesion").style.display = "inline-block";
+  }
 };
+
+function iniciarTemporizadorSesion() {
+  const timerEl = document.getElementById("temporizador-sesion");
+  const duracionSesion = 10 * 60 * 1000;
+  const aviso2Min = 2 * 60 * 1000;
+  let yaPregunto = false;
+
+  // ✅ Limpiar temporizador anterior si existe
+  if (temporizadorSesionId) {
+    clearTimeout(temporizadorSesionId);
+    temporizadorSesionId = null;
+  }
+
+  function actualizarTemporizador() {
+    const inicioStr = localStorage.getItem("session_start");
+    if (!inicioStr) return;
+
+    const inicio = parseInt(inicioStr, 10);
+    const ahora = Date.now();
+    const restante = duracionSesion - (ahora - inicio);
+
+    if (restante <= 0) {
+      alert("🔒 Tu sesión ha sido cerrada por inactividad.");
+      cerrarSesion(true);  // ← Se cierra directamente, sin confirmar
+      return;
+    }
+
+    const minutos = Math.floor(restante / 60000);
+    const segundos = Math.floor((restante % 60000) / 1000);
+
+    if (restante <= aviso2Min && !yaPregunto) {
+      yaPregunto = true;
+
+      const extender = confirm("⏳ Tu sesión está por expirar. ¿Deseas extenderla 10 minutos más?");
+      if (extender) {
+        localStorage.setItem("session_start", Date.now().toString());
+        yaPregunto = false;
+      } else {
+        timerEl.classList.add("alerta");
+      }
+    }
+
+    if (timerEl) {
+      timerEl.textContent = `⏳ ${minutos}:${segundos.toString().padStart(2, "0")}`;
+    }
+
+    // ⏱️ Guardamos el ID para evitar duplicados
+    temporizadorSesionId = setTimeout(actualizarTemporizador, 1000);
+  }
+
+  actualizarTemporizador();
+}
 
 window.guardarNombre = () => {
   const input = document.getElementById("nombre-input");
@@ -120,8 +208,10 @@ window.guardarNombre = () => {
       addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
       botAudio.play();
 
-      // ✅ Guardar nombre en localStorage
+      // ✅ Guardar nombre y tiempo de sesión
       localStorage.setItem("nombre_usuario", nombre);
+      localStorage.setItem("session_start", Date.now().toString()); // ⏱️ Inicio de sesión
+      iniciarTemporizadorSesion(); // ⏳ Inicia el contador regresivo
 
       // ✅ Habilitar input
       userInput.disabled = false;
@@ -140,6 +230,10 @@ window.guardarNombre = () => {
   if (mensaje) mensaje.remove();
 };
 
+function scrollChatToBottom() {
+  chatOutput.scrollTop = chatOutput.scrollHeight;
+}
+
 function mostrarSolicitudNombre() {
   const mensajeNombre = document.createElement("div");
   mensajeNombre.className = "mensaje-bot fade-in";
@@ -149,7 +243,7 @@ function mostrarSolicitudNombre() {
     <button id="nombre-submit-btn" onclick="guardarNombre()">Guardar</button>
   `;
   chatOutput.appendChild(mensajeNombre);
-  chatOutput.scrollTop = chatOutput.scrollHeight;
+  scrollChatToBottom();
 
   // Enfocar automáticamente el input
   setTimeout(() => {
@@ -253,17 +347,21 @@ async function enviarMensaje(message, file = null) {
         mostrarNombreUsuario(nombreDetectado);
         userInput.disabled = false;
         document.getElementById("cerrar-sesion").style.display = "inline-block";
+
+        // ✅ Corregido: iniciar temporizador al detectar nombre
+        localStorage.setItem("session_start", Date.now().toString());
+        iniciarTemporizadorSesion();
       }
 
       addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
       return;
     }
 
-    // Si no es ping, proceso normal
+    // 🧠 Procesamiento normal de otros mensajes
     addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
     botAudio.play();
 
-    // También detectar nombre desde el mensaje si aplica
+    // Detectar nombre en respuesta si aplica
     const match = data.response.match(/Hola de nuevo,\s*(.+?)!/i);
     if (match && match[1]) {
       const nombre = match[1].trim();
@@ -306,5 +404,5 @@ function addMessage(text, clase, isHtml = false) {
   }
 
   chatOutput.appendChild(div);
-  chatOutput.scrollTop = chatOutput.scrollHeight;
+  scrollChatToBottom();
 }

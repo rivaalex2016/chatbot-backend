@@ -4,6 +4,26 @@
   overflow-y: auto;
 }
 
+/* ⏳ Temporizador visual de sesión activa */
+#temporizador-sesion {
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+/* ⚠️ Alerta visual cuando faltan menos de 2 minutos */
+#temporizador-sesion.alerta {
+  color: red;
+  font-weight: bold;
+  animation: parpadeo 1s infinite;
+}
+
+/* 💡 Animación para alerta parpadeante */
+@keyframes parpadeo {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+
 /* 💬 Estilos base para mensajes del usuario y del bot */
 .mensaje-usuario,
 .mensaje-bot {
