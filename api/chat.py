@@ -331,14 +331,32 @@ def chat():
         user_name = get_user_name(user_identity)
 
         if user_message == "__ping__":
-            saludo = f"👋 ¡Hola de nuevo, {user_name}! ¿En qué puedo ayudarte hoy?" if user_name else "👋 ¡Hola! Antes de continuar, por favor ingresa tu nombre completo:"
+            if user_name:
+                saludo = (
+                    f"¡Hola de nuevo, {user_name}! 👋\n\n"
+                    "🙌 Ya estás registrado en el sistema.\n\n"
+                    "**¿Qué deseas hacer hoy?**\n\n"
+                    "➡️  *Hacer preguntas sobre INNOVUG*❓\n\n"
+                    "➡️  *Subir una nueva propuesta en PDF para ser evaluada*📄\n\n"
+                    "_Estoy listo para ayudarte 😊_"
+                )
+            else:
+                saludo = "👋 ¡Hola! Antes de continuar, por favor ingresa tu nombre completo:"
+
             user_contexts.setdefault(user_identity, []).append({"role": "assistant", "content": saludo})
             guardar_mensaje(user_identity, "assistant", saludo)
             return jsonify({"response": saludo, "nombre": user_name} if user_name else {"response": saludo})
 
         if etapa == "nombre" and user_message:
             set_user_name(user_identity, user_message.title())
-            saludo = f"¡Gracias {user_message.title()}! Ahora puedes escribir tu mensaje o subir tu archivo PDF 📄"
+            saludo = (
+                f"¡Perfecto, {user_message.title()}! 👋\n\n"
+                "✅ Ya estás registrado correctamente.\n\n"
+                "**Ahora puedes elegir:**\n\n"
+                "➡️  *Hacer preguntas sobre INNOVUG*❓\n\n"
+                "➡️  *Subir tu propuesta en PDF para que la analice y la evalúe con criterios técnicos📄*\n\n"
+                "_¿Con qué te gustaría empezar?_"
+            )
             user_contexts.setdefault(user_identity, []).append({"role": "assistant", "content": saludo})
             guardar_mensaje(user_identity, "assistant", saludo)
             return jsonify({"response": saludo})
