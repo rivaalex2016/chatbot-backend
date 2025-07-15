@@ -471,7 +471,7 @@ def chat():
                 user_contexts[user_identity].append({'role': 'assistant', 'content': respuesta})
                 guardar_mensaje(user_identity, 'assistant', respuesta)
 
-                # Extraer evaluación IA desde JSON en respuesta
+                # Extraer evaluación IA desde JSON en respuestas
                 try:
                     import json
                     evaluacion_ia = json.loads(respuesta)
