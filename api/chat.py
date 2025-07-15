@@ -149,8 +149,8 @@ def extraer_datos_pdf_con_ia(texto, user_identity):
         system_prompt = (
             "Eres un asistente que extrae datos estructurados desde un texto escaneado de un formulario de emprendimiento. "
             "Devuelve un objeto JSON válido, usando comillas dobles (\"), sin texto adicional. "
-            "Debes incluir todos los campos obligatorios de la base de datos, y además generar una evaluación técnica y objetiva "
-            "del emprendimiento basada en el contenido, y calcular un promedio numérico entre 0 y 10. El formato exacto es:\n\n"
+            "Debes incluir todos los campos obligatorios de la base de datos"
+            "El formato exacto es:\n\n"
             "{\n"
             "  \"nombres\": \"\",\n"
             "  \"apellidos\": \"\",\n"
@@ -172,8 +172,6 @@ def extraer_datos_pdf_con_ia(texto, user_identity):
             "  \"evaluacion\": \"Tu resumen evaluativo detallado aquí...\",\n"
             "  \"promedio_evaluacion\": 0.0\n"
             "}\n\n"
-            "La evaluación debe tener lenguaje técnico, claro y profesional. El promedio es un valor decimal entre 0 y 10, basado en 6 criterios: "
-            "problema/solución, mercado, competencia, modelo de negocio, escalabilidad y equipo."
         )
 
         mensajes = [
