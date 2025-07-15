@@ -144,65 +144,81 @@ def set_user_name(user_identity, full_name):
     except Exception as e:
         logging.error(f"❌ Error guardando nombre del usuario: {e}")
 
-def extraer_datos_pdf_con_ia(texto, user_identity):
+def extraer_datos_pdf_con_ia(texto_pdf):
+    """
+    Extrae solo datos estructurados desde el texto plano de un PDF usando OpenAI.
+    Devuelve un diccionario con estructura esperada: proyecto, lider, equipo.
+    No hace evaluación.
+    """
     try:
         system_prompt = (
-            "Eres un asistente que extrae datos estructurados desde un texto escaneado de un formulario de emprendimiento. "
-            "Devuelve un objeto JSON válido, usando comillas dobles (\"), sin texto adicional. "
-            "Debes incluir todos los campos obligatorios de la base de datos"
-            "El formato exacto es:\n\n"
-            "{\n"
-            "  \"nombres\": \"\",\n"
-            "  \"apellidos\": \"\",\n"
-            "  \"cedula\": \"\",\n"
-            "  \"facultad\": \"\",\n"
-            "  \"carrera\": \"\",\n"
-            "  \"numero_de_telefono\": \"\",\n"
-            "  \"correo_electronico\": \"\",\n"
-            "  \"semestre_que_cursa\": \"\",\n"
-            "  \"equipo_integrantes\": [\n"
-            "    { \"nombres\": \"\", \"apellidos\": \"\", \"cedula\": \"\", \"rol\": \"\", \"funcion\": \"\" }\n"
-            "  ],\n"
-            "  \"nombre_del_negocio\": \"\",\n"
-            "  \"problema_y_solucion\": \"\",\n"
-            "  \"mercado\": \"\",\n"
-            "  \"competencia\": \"\",\n"
-            "  \"modelo_de_negocio\": \"\",\n"
-            "  \"escalabilidad\": \"\",\n"
-            "  \"evaluacion\": \"Tu resumen evaluativo detallado aquí...\",\n"
-            "  \"promedio_evaluacion\": 0.0\n"
-            "}\n\n"
+            "Eres un asistente que extrae información estructurada de un texto de propuesta de emprendimiento. "
+            "Devuelve un JSON con los campos necesarios para la base de datos, dejando vacío todo lo que no esté disponible. "
+            "Solo responde el JSON, sin explicaciones.\n"
+            "  \"proyecto\": {\n"
+            "    \"nombre_del_negocio\": \"\",\n"
+            "    \"problema_y_solucion\": \"\",\n"
+            "    \"mercado\": \"\",\n"
+            "    \"competencia\": \"\",\n"
+            "    \"modelo_de_negocio\": \"\",\n"
+            "    \"escalabilidad\": \"\"\n"
+            "  },\n"
+            "  \"lider\": {\n"
+            "    \"nombres\": \"\",\n"
+            "    \"apellidos\": \"\",\n"
+            "    \"cedula\": \"\",\n"
+            "    \"facultad\": \"\",\n"
+            "    \"carrera\": \"\",\n"
+            "    \"numero_telefono\": \"\",\n"
+            "    \"correo_electronico\": \"\",\n"
+            "    \"semestre_que_cursa\": \"\"\n"
+            "  },\n"
+            "  \"equipo\": [\n"
+            "    {\"nombres\": \"\", \"apellidos\": \"\", \"cedula\": \"\", \"rol\": \"\", \"funcion\": \"\"}\n"
+            "  ]\n"
+            "}"
         )
 
         mensajes = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Texto extraído del PDF del usuario {user_identity}:\n{texto}"}
+            {"role": "user", "content": f"Texto del PDF:\n{texto_pdf}"}
         ]
 
         response = openai.ChatCompletion.create(
             model=MODEL,
             messages=mensajes,
-            temperature=0.3,
+            temperature=0.2
         )
 
         import json
-        raw_json = response.choices[0].message['content']
-        try:
-            return json.loads(raw_json)
-        except json.JSONDecodeError as e:
-            logging.error(f"❌ JSON inválido de OpenAI:\n{raw_json}")
-            raise e
+        contenido = response.choices[0].message['content'].strip()
+
+        if not contenido:
+            raise ValueError("La IA no devolvió contenido.")
+
+        datos = json.loads(contenido)
+
+        # Validación mínima de estructura
+        if not all(k in datos for k in ("proyecto", "lider", "equipo")):
+            raise ValueError("El JSON no contiene todos los campos esperados.")
+
+        return datos
 
     except Exception as e:
-        logging.error(f"❌ Error en extraer_datos_pdf_con_ia: {e}")
-        return {}
+        logging.error(f"❌ Error al extraer datos desde el PDF: {e}")
+        return {
+            "proyecto": {},
+            "lider": {},
+            "equipo": []
+        }
 
-def upsert_pdf_data(user_identity, datos, respuesta_ia, hash_pdf):
+def upsert_pdf_data(user_identity, datos, hash_pdf):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Paso 1: Insertar proyecto
+        # Paso 1: Insertar proyecto (permitir campos vacíos)
+        proyecto = datos.get("proyecto", {})
         cur.execute("""
             INSERT INTO projects (
                 user_identity, nombre_del_negocio, problema_y_solucion,
@@ -211,16 +227,17 @@ def upsert_pdf_data(user_identity, datos, respuesta_ia, hash_pdf):
             RETURNING id_version;
         """, (
             user_identity,
-            datos.get("nombre_del_negocio"),
-            datos.get("problema_y_solucion"),
-            datos.get("mercado"),
-            datos.get("competencia"),
-            datos.get("modelo_de_negocio"),
-            datos.get("escalabilidad")
+            proyecto.get("nombre_del_negocio") or "",
+            proyecto.get("problema_y_solucion") or "",
+            proyecto.get("mercado") or "",
+            proyecto.get("competencia") or "",
+            proyecto.get("modelo_de_negocio") or "",
+            proyecto.get("escalabilidad") or ""
         ))
         project_id_version = cur.fetchone()[0]
 
-        # Paso 2: Insertar líder del proyecto
+        # Paso 2: Insertar líder (evita campos nulos)
+        lider = datos.get("lider", {})
         cur.execute("""
             INSERT INTO lider_proyecto (
                 project_id_version, nombres, apellidos, cedula, facultad, carrera,
@@ -228,58 +245,50 @@ def upsert_pdf_data(user_identity, datos, respuesta_ia, hash_pdf):
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
         """, (
             project_id_version,
-            datos.get("nombres"),
-            datos.get("apellidos"),
-            datos.get("cedula"),
-            datos.get("facultad"),
-            datos.get("carrera"),
-            datos.get("numero_de_telefono"),
-            datos.get("correo_electronico"),
-            datos.get("semestre_que_cursa")
+            lider.get("nombres") or "",
+            lider.get("apellidos") or "",
+            lider.get("cedula") or "",
+            lider.get("facultad") or "",
+            lider.get("carrera") or "",
+            lider.get("numero_telefono") or "",
+            lider.get("correo_electronico") or "",
+            lider.get("semestre_que_cursa") or ""
         ))
 
         # Paso 3: Insertar integrantes del equipo
-        for integrante in datos.get("equipo_integrantes", []):
+        for integrante in datos.get("equipo", []):
             cur.execute("""
                 INSERT INTO integrantes_equipo (
                     project_id_version, nombres, apellidos, cedula, rol, funcion
                 ) VALUES (%s, %s, %s, %s, %s, %s);
             """, (
                 project_id_version,
-                integrante.get("nombres"),
-                integrante.get("apellidos"),
-                integrante.get("cedula"),
-                integrante.get("rol"),
-                integrante.get("funcion")
+                integrante.get("nombres") or "",
+                integrante.get("apellidos") or "",
+                integrante.get("cedula") or "",
+                integrante.get("rol") or "",
+                integrante.get("funcion") or ""
             ))
 
-        # Paso 4: Extraer promedio desde la respuesta IA
-        match = re.search(r"promedio\s*final.*?=\s*(\d+(?:[.,]\d+)?)", respuesta_ia.lower())
-        if match:
-            try:
-                promedio = float(match.group(1).replace(",", "."))
-                promedio = round(promedio, 2)
-                if not 0 <= promedio <= 10:
-                    promedio = 0.0
-                    logging.warning(f"⚠️ Promedio fuera de rango, se fuerza a 0.0: {match.group(1)}")
-            except ValueError:
-                promedio = 0.0
-                logging.warning("⚠️ Promedio extraído no convertible a float.")
-        else:
+        # Paso 4: Insertar evaluación (aunque sea de rechazo)
+        detalle = datos.get("evaluacion", "") or ""
+        promedio = datos.get("promedio_evaluacion", 0.0)
+        estado = datos.get("estado", "pendiente_aprobacion_chatbot")
+
+        # Validar tipo de promedio
+        try:
+            promedio = float(promedio)
+        except:
             promedio = 0.0
-            logging.warning("⚠️ No se encontró el promedio en la respuesta IA.")
 
-        logging.info(f"ℹ️ Promedio evaluado para user {user_identity}: {promedio}")
-
-        # Paso 5: Insertar evaluación con hash
         cur.execute("""
             INSERT INTO evaluaciones (
                 project_id_version, detalle, proposal_status, promedio_evaluacion, hash_pdf
             ) VALUES (%s, %s, %s, %s, %s);
         """, (
             project_id_version,
-            respuesta_ia,
-            "pendiente_aprobacion_chatbot",
+            detalle,
+            estado,
             promedio,
             hash_pdf
         ))
@@ -423,7 +432,7 @@ def chat():
                 # Calcular hash del texto
                 hash_pdf = generar_hash_pdf(uploaded_text)
 
-                # Buscar evaluación previa
+                # Buscar evaluación previa por hash
                 try:
                     conn = get_db_connection()
                     cur = conn.cursor()
@@ -448,7 +457,7 @@ def chat():
                     logging.warning(f"⚠️ No se pudo verificar hash en BD: {e}")
 
                 # Evaluar nuevo PDF
-                datos_extraidos = extraer_datos_pdf_con_ia(uploaded_text, user_identity)
+                datos_extraidos = extraer_datos_pdf_con_ia(uploaded_text)
                 datos_extraidos["cedula"] = datos_extraidos.get("cedula")
                 datos_extraidos["identity"] = user_identity
 
@@ -462,8 +471,24 @@ def chat():
                 user_contexts[user_identity].append({'role': 'assistant', 'content': respuesta})
                 guardar_mensaje(user_identity, 'assistant', respuesta)
 
-                # Guardar en BD con hash
-                upsert_pdf_data(user_identity, datos_extraidos, respuesta, hash_pdf)
+                # Extraer evaluación IA desde JSON en respuesta
+                try:
+                    import json
+                    evaluacion_ia = json.loads(respuesta)
+
+                    if not all(k in evaluacion_ia for k in ("evaluacion", "promedio_evaluacion", "estado")):
+                        raise ValueError("Faltan campos en el JSON de evaluación")
+
+                    datos_extraidos.update(evaluacion_ia)
+
+                except Exception as e:
+                    logging.warning(f"⚠️ La IA no devolvió un JSON válido de evaluación: {e}")
+                    datos_extraidos["evaluacion"] = respuesta
+                    datos_extraidos["promedio_evaluacion"] = 0.0
+                    datos_extraidos["estado"] = "pendiente_aprobacion_chatbot"
+
+                # Guardar todo en BD
+                upsert_pdf_data(user_identity, datos_extraidos, hash_pdf)
 
                 return jsonify({"response": respuesta})
 
