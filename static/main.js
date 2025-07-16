@@ -121,12 +121,15 @@ function mostrarPoliticasDespuesDelNombre(callback = () => {}) {
         localStorage.clear();
         politicas.innerHTML = "<p>❌ No puedes continuar si no aceptas las políticas. Tus datos han sido eliminados.</p>";
         userInput.disabled = true;
-        document.getElementById("cerrar-sesion").style.display = "inline-block"; // ✅ Permitir volver a empezar
+        fileInput.disabled = true; // ❌ Deshabilitar subida de archivos
+        document.getElementById("cerrar-sesion").style.display = "inline-block";
       })
       .catch(err => {
         console.error("❌ Error eliminando datos:", err);
         politicas.innerHTML = "<p>❌ Ocurrió un error al eliminar los datos. Intenta de nuevo.</p>";
-        document.getElementById("cerrar-sesion").style.display = "inline-block"; // 🔁 Asegurar que el botón siga disponible
+        userInput.disabled = true;
+        fileInput.disabled = true; // Asegurarlo también en errores
+        document.getElementById("cerrar-sesion").style.display = "inline-block";
       });
   });
 }
