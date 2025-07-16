@@ -114,11 +114,17 @@ function mostrarPoliticasDespuesDelNombre(callback = () => {}) {
   chatOutput.appendChild(politicas);
   scrollChatToBottom();
 
+  // ❌ Desactivar inputs mientras el usuario decide
+  userInput.disabled = true;
+  fileInput.disabled = true;
+
   document.getElementById("btn-aceptar-politicas").addEventListener("click", () => {
     localStorage.setItem("politicas_aceptadas", "true");
     politicas.remove();
     addMessage("✅ Políticas aceptadas", "mensaje-usuario");
-    callback();
+    userInput.disabled = false;
+    fileInput.disabled = false;
+    callback(); // ✅ Continúa el flujo normal
   });
 
   document.getElementById("btn-rechazar-politicas").addEventListener("click", () => {
