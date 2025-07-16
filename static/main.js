@@ -100,6 +100,12 @@ function mostrarPoliticasDespuesDelNombre(callback = () => {}) {
 
   politicas.innerHTML = `
     <p><strong>Antes de continuar</strong>, debes aceptar nuestras <strong>políticas de privacidad y uso del chatbot</strong>.</p>
+    <p>Puedes revisarlas aquí 👉 
+      <a href="https://www.dropbox.com/scl/fi/xm4upeyq8yjdf0l1ay3ig/POL-TICA-DE-PRIVACIDAD-Y-USO-DEL-CHATBOT-INNOVUG.pdf?rlkey=nztgunry3giz9eo285c24tk25&st=s7r9p3ow&dl=0" 
+         target="_blank" rel="noopener noreferrer">
+         Ver documento PDF
+      </a>
+    </p>
     <p>¿Aceptas continuar?</p>
     <button class="btn btn-sm btn-success mt-2" id="btn-aceptar-politicas">Aceptar</button>
     <button class="btn btn-sm btn-danger mt-2" id="btn-rechazar-politicas">Cancelar</button>
@@ -112,7 +118,7 @@ function mostrarPoliticasDespuesDelNombre(callback = () => {}) {
     localStorage.setItem("politicas_aceptadas", "true");
     politicas.remove();
     addMessage("✅ Políticas aceptadas", "mensaje-usuario");
-    callback(); // ✅ Ejecutar acción post-aceptación (como mostrar saludo INNOVUG)
+    callback();
   });
 
   document.getElementById("btn-rechazar-politicas").addEventListener("click", () => {
@@ -121,14 +127,14 @@ function mostrarPoliticasDespuesDelNombre(callback = () => {}) {
         localStorage.clear();
         politicas.innerHTML = "<p>❌ No puedes continuar si no aceptas las políticas. Tus datos han sido eliminados.</p>";
         userInput.disabled = true;
-        fileInput.disabled = true; // ❌ Deshabilitar subida de archivos
+        fileInput.disabled = true;
         document.getElementById("cerrar-sesion").style.display = "inline-block";
       })
       .catch(err => {
         console.error("❌ Error eliminando datos:", err);
         politicas.innerHTML = "<p>❌ Ocurrió un error al eliminar los datos. Intenta de nuevo.</p>";
         userInput.disabled = true;
-        fileInput.disabled = true; // Asegurarlo también en errores
+        fileInput.disabled = true;
         document.getElementById("cerrar-sesion").style.display = "inline-block";
       });
   });
