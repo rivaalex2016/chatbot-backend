@@ -9,9 +9,7 @@ let temporizadorSesionId = null;
 
 window.onload = () => {
   userId = localStorage.getItem("user_id");
-
   const cerrarBtn = document.getElementById("cerrar-sesion");
-
   const inicioSesion = localStorage.getItem("session_start");
   const ahora = Date.now();
   const duracionSesion = 10 * 60 * 1000; // 10 minutos
@@ -27,12 +25,11 @@ window.onload = () => {
     enviarMensaje("__ping__");
     cerrarBtn.style.display = "inline-block";
 
-    // 🛠️ Si no hay session_start, lo inicializamos ahora
     if (!inicioSesion) {
       localStorage.setItem("session_start", Date.now().toString());
     }
 
-    iniciarTemporizadorSesion(); // ✅ Siempre iniciamos el temporizador
+    iniciarTemporizadorSesion();
   } else {
     mostrarSolicitudCedula();
     userInput.disabled = true;
@@ -67,6 +64,7 @@ function cerrarSesion(forzado = false) {
   localStorage.removeItem("user_id");
   localStorage.removeItem("nombre_usuario");
   localStorage.removeItem("session_start");
+  localStorage.removeItem("politicas_aceptadas"); // ❗ Elimina la aceptación de políticas
 
   // 🧽 Limpiar el contador visual también
   const timerEl = document.getElementById("temporizador-sesion");
@@ -93,6 +91,43 @@ function mostrarSolicitudCedula() {
   `;
   chatOutput.appendChild(bienvenida);
   scrollChatToBottom();
+}
+
+function mostrarPoliticasDespuesDelNombre() {
+  const politicas = document.createElement("div");
+  politicas.className = "mensaje-bot fade-in";
+  politicas.id = "politicas-box";
+
+  politicas.innerHTML = `
+    <p><strong>Antes de continuar</strong>, debes aceptar nuestras <strong>políticas de privacidad y uso del chatbot</strong>.</p>
+    <p>¿Aceptas continuar?</p>
+    <button class="btn btn-sm btn-success mt-2" id="btn-aceptar-politicas">Aceptar</button>
+    <button class="btn btn-sm btn-danger mt-2" id="btn-rechazar-politicas">Cancelar</button>
+  `;
+
+  chatOutput.appendChild(politicas);
+  scrollChatToBottom();
+
+  document.getElementById("btn-aceptar-politicas").addEventListener("click", () => {
+    localStorage.setItem("politicas_aceptadas", "true");
+    politicas.remove();
+    addMessage("✅ Políticas aceptadas", "mensaje-usuario");
+    userInput.disabled = false;
+    document.getElementById("cerrar-sesion").style.display = "inline-block";
+  });
+
+  document.getElementById("btn-rechazar-politicas").addEventListener("click", () => {
+    fetch(`${API_BASE}/api/usuarios/${userId}`, { method: "DELETE" })
+      .then(() => {
+        localStorage.clear();
+        politicas.innerHTML = "<p>❌ No puedes continuar si no aceptas las políticas. Tus datos han sido eliminados.</p>";
+        userInput.disabled = true;
+      })
+      .catch(err => {
+        console.error("❌ Error eliminando datos:", err);
+        politicas.innerHTML = "<p>❌ Ocurrió un error al eliminar los datos. Intenta de nuevo.</p>";
+      });
+  });
 }
 
 window.guardarCedula = () => {
@@ -186,7 +221,6 @@ window.guardarNombre = () => {
 
   addMessage(`Nombre registrado: ${nombre}`, "mensaje-usuario");
 
-  // Mostrar mensaje de "escribiendo..." antes del fetch
   const escribiendo = document.createElement("div");
   escribiendo.className = "mensaje-bot fade-in";
   escribiendo.id = "escribiendo";
@@ -208,24 +242,24 @@ window.guardarNombre = () => {
       addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
       botAudio.play();
 
-      // ✅ Guardar nombre y tiempo de sesión
       localStorage.setItem("nombre_usuario", nombre);
-      localStorage.setItem("session_start", Date.now().toString()); // ⏱️ Inicio de sesión
-      iniciarTemporizadorSesion(); // ⏳ Inicia el contador regresivo
+      localStorage.setItem("session_start", Date.now().toString());
+      iniciarTemporizadorSesion();
 
-      // ✅ Habilitar input
-      userInput.disabled = false;
-
-      // ✅ Mostrar nombre y botón
-      mostrarNombreUsuario(nombre);
-      document.getElementById("cerrar-sesion").style.display = "inline-block";
+      const yaAcepto = localStorage.getItem("politicas_aceptadas");
+      if (!yaAcepto) {
+        mostrarPoliticasDespuesDelNombre(); // ← Aquí se muestra si es nuevo
+      } else {
+        userInput.disabled = false;
+        mostrarNombreUsuario(nombre);
+        document.getElementById("cerrar-sesion").style.display = "inline-block";
+      }
     })
     .catch((err) => {
       document.getElementById("escribiendo")?.remove();
       addMessage(`Error: ${err.message}`, "mensaje-bot");
     });
 
-  // ✅ Eliminar input del nombre
   const mensaje = input.closest(".mensaje-bot");
   if (mensaje) mensaje.remove();
 };

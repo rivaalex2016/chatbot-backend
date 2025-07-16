@@ -424,6 +424,25 @@ def openai_IA(contexto):
         logging.error(f"❌ Error en openai_IA: {e}")
         return "❌ Hubo un problema al procesar tu mensaje con la IA."
 
+@chat_blueprint.route('/usuarios/<user_identity>', methods=['DELETE'])
+def eliminar_usuario(user_identity):
+    try:
+        user_identity = request.view_args['user_identity']
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("DELETE FROM users WHERE identity = %s", (user_identity,))
+        conn.commit()
+
+        cur.close()
+        conn.close()
+        logging.info(f"🗑️ Usuario eliminado: {user_identity}")
+        return jsonify({"success": True, "message": "Usuario eliminado"}), 200
+    except Exception as e:
+        logging.error(f"❌ Error eliminando usuario: {e}")
+        return jsonify({"success": False, "message": "Error eliminando usuario"}), 500
+
+
 @chat_blueprint.route('/chat', methods=['POST'])
 def chat():
     try:
@@ -487,7 +506,7 @@ def chat():
                 if not compare_pdfs(REFERENCE_TEXT, uploaded_text):
                     return jsonify({"response": (
                         "📄 El archivo enviado no parece una propuesta válida. Por favor, descarga el formato oficial desde: "
-                        "<a href='https://www.dropbox.com/scl/fi/zuibj62g5wjsdzcovf4pb/FICHA-DE-EMPRENDEDORES_NOMBRE-NEGOCIO.docx?rlkey=sec681vbpcthobyjvzqacs084&st=wwpcxlje&dl=0' target='_blank'>Formato Propuesta WORD</a>"
+                        "<a href='https://www.dropbox.com/scl/fi/zuibj62g5wjsdzcovf4pb/FICHA-DE-EMPRENDORES_NOMBRE-NEGOCIO.docx?rlkey=sec681vbpcthobyjvzqacs084&st=a6actt9m&dl=0' target='_blank'>Formato Propuesta WORD</a>"
                     )})
 
                 hash_pdf = generar_hash_pdf(uploaded_text)

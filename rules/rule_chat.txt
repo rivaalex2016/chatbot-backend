@@ -141,7 +141,7 @@ El Centro de Emprendimiento INNOVUG se encuentra en:
 - Si el PDF *no contiene contenido similar al formato oficial*, responde con:  
   "📄 El archivo enviado no parece una propuesta de emprendimiento válida.  
   Por favor, descarga y completa el formato oficial desde este enlace:  
-  👉 [Formato Propuesta WORD](https://www.dropbox.com/scl/fi/iskiwu33svjddid38iu1j/FICHA-DE-EMPRENDORES_NOMBRE-NEGOCIO.docx?rlkey=ai510a5wfyfs7h4jzn2pvmoqz&st=8qlsljv0&dl=1)"
+  👉 [Formato Propuesta WORD](https://www.dropbox.com/scl/fi/zuibj62g5wjsdzcovf4pb/FICHA-DE-EMPRENDORES_NOMBRE-NEGOCIO.docx?rlkey=sec681vbpcthobyjvzqacs084&st=a6actt9m&dl=0)"
 
 - Si el usuario pregunta si tienes un formato, responde afirmativamente y proporciona el mismo enlace.
 
