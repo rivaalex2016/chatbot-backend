@@ -93,7 +93,7 @@ function mostrarSolicitudCedula() {
   scrollChatToBottom();
 }
 
-function mostrarPoliticasDespuesDelNombre() {
+function mostrarPoliticasDespuesDelNombre(callback = () => {}) {
   const politicas = document.createElement("div");
   politicas.className = "mensaje-bot fade-in";
   politicas.id = "politicas-box";
@@ -112,8 +112,7 @@ function mostrarPoliticasDespuesDelNombre() {
     localStorage.setItem("politicas_aceptadas", "true");
     politicas.remove();
     addMessage("✅ Políticas aceptadas", "mensaje-usuario");
-    userInput.disabled = false;
-    document.getElementById("cerrar-sesion").style.display = "inline-block";
+    callback(); // ✅ Ejecutar acción post-aceptación (como mostrar saludo INNOVUG)
   });
 
   document.getElementById("btn-rechazar-politicas").addEventListener("click", () => {
@@ -122,10 +121,12 @@ function mostrarPoliticasDespuesDelNombre() {
         localStorage.clear();
         politicas.innerHTML = "<p>❌ No puedes continuar si no aceptas las políticas. Tus datos han sido eliminados.</p>";
         userInput.disabled = true;
+        document.getElementById("cerrar-sesion").style.display = "inline-block"; // ✅ Permitir volver a empezar
       })
       .catch(err => {
         console.error("❌ Error eliminando datos:", err);
         politicas.innerHTML = "<p>❌ Ocurrió un error al eliminar los datos. Intenta de nuevo.</p>";
+        document.getElementById("cerrar-sesion").style.display = "inline-block"; // 🔁 Asegurar que el botón siga disponible
       });
   });
 }
@@ -239,20 +240,27 @@ window.guardarNombre = () => {
     .then((res) => res.json())
     .then((data) => {
       document.getElementById("escribiendo")?.remove();
-      addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
-      botAudio.play();
 
       localStorage.setItem("nombre_usuario", nombre);
       localStorage.setItem("session_start", Date.now().toString());
       iniciarTemporizadorSesion();
 
       const yaAcepto = localStorage.getItem("politicas_aceptadas");
+
       if (!yaAcepto) {
-        mostrarPoliticasDespuesDelNombre(); // ← Aquí se muestra si es nuevo
+        mostrarPoliticasDespuesDelNombre(() => {
+          mostrarNombreUsuario(nombre);
+          userInput.disabled = false;
+          document.getElementById("cerrar-sesion").style.display = "inline-block";
+          addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
+          botAudio.play();
+        });
       } else {
-        userInput.disabled = false;
         mostrarNombreUsuario(nombre);
+        userInput.disabled = false;
         document.getElementById("cerrar-sesion").style.display = "inline-block";
+        addMessage(`INNOVUG: ${marked.parse(data.response)}`, "mensaje-bot", true);
+        botAudio.play();
       }
     })
     .catch((err) => {
