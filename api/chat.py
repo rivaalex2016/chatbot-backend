@@ -193,7 +193,7 @@ def extraer_datos_structurados_desde_texto(texto):
 
     raw = response.choices[0].message['content'].strip()
 
-    # 🔧 Eliminar envoltura de bloque de código si existe
+    # 🔧 Eliminar envoltura de bloque de código si existe (ej. ```json ... ```)
     if raw.startswith("```") and raw.endswith("```"):
         raw = re.sub(r"^```[a-z]*\n?", "", raw)
         raw = re.sub(r"\n?```$", "", raw)
@@ -209,6 +209,65 @@ def extraer_datos_structurados_desde_texto(texto):
     except json.JSONDecodeError as e:
         logging.error(f"❌ JSON inválido después de limpiar:\n{raw}")
         raise e
+    
+def cargar_contexto_ampliado(user_identity):
+    contexto = []
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Obtener todos los proyectos del usuario
+        cur.execute("""
+            SELECT id_version, nombre_del_negocio, problema_y_solucion, mercado, competencia,
+                   modelo_de_negocio, escalabilidad, created_at
+            FROM projects
+            WHERE user_identity = %s
+            ORDER BY created_at ASC
+        """, (user_identity,))
+        proyectos = cur.fetchall()
+
+        for p in proyectos:
+            id_version = p[0]
+            descripcion = f"""
+📦 Proyecto #{id_version}:
+- Nombre: {p[1]}
+- Problema y solución: {p[2]}
+- Mercado: {p[3]}
+- Competencia: {p[4]}
+- Modelo de negocio: {p[5]}
+- Escalabilidad: {p[6]}
+- Fecha de creación: {p[7]}
+            """.strip()
+            contexto.append({"role": "system", "content": descripcion})
+
+            # Obtener evaluaciones
+            cur.execute("""
+                SELECT detalle, promedio_evaluacion, proposal_status, created_at
+                FROM evaluaciones
+                WHERE project_id_version = %s
+                ORDER BY created_at ASC
+            """, (id_version,))
+            evaluaciones = cur.fetchall()
+
+            for e in evaluaciones:
+                detalle_eval = f"""
+📑 Evaluación:
+- Promedio: {e[1]}
+- Estado: {e[2]}
+- Fecha: {e[3]}
+- Detalle: {e[0][:500]}...
+                """.strip()
+                contexto.append({"role": "system", "content": detalle_eval})
+
+        cur.close()
+        conn.close()
+
+    except Exception as e:
+        logging.error(f"❌ Error cargando contexto ampliado: {e}")
+
+    return contexto
+
 
 def evaluar_propuesta_con_ia(texto):
     mensajes = [
@@ -222,7 +281,7 @@ def evaluar_propuesta_con_ia(texto):
     )
     return response.choices[0].message['content']
 
-def upsert_pdf_data(user_identity, datos, hash_pdf):
+def upsert_pdf_data(user_identity, datos, respuesta_ia, hash_pdf):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -237,7 +296,7 @@ def upsert_pdf_data(user_identity, datos, hash_pdf):
         for campo in campos_proyecto:
             datos[campo] = datos.get(campo, "") or ""
 
-        # 1. Insertar en `projects`
+        # 1. Insertar en projects
         cur.execute("""
             INSERT INTO projects (
                 user_identity, nombre_del_negocio, problema_y_solucion,
@@ -256,7 +315,7 @@ def upsert_pdf_data(user_identity, datos, hash_pdf):
         project_id = cur.fetchone()[0]
         print("✅ Proyecto insertado. ID:", project_id)
 
-        # 2. Insertar en `lider_proyecto`
+        # 2. Insertar en lider_proyecto
         campos_lider = [
             "nombres", "apellidos", "cedula", "facultad",
             "carrera", "numero_de_telefono", "correo_electronico", "semestre_que_cursa"
@@ -282,7 +341,7 @@ def upsert_pdf_data(user_identity, datos, hash_pdf):
         ))
         print("✅ Líder del proyecto insertado.")
 
-        # 3. Insertar en `integrantes_equipo`
+        # 3. Insertar en integrantes_equipo
         integrantes = datos.get("equipo_integrantes", [])
         for integrante in integrantes:
             for campo in ["nombres", "apellidos", "cedula", "rol", "funcion"]:
@@ -316,7 +375,7 @@ def upsert_pdf_data(user_identity, datos, hash_pdf):
 
         estado = "aprobado_chatbot" if promedio >= 8 else "pendiente_aprobacion_chatbot"
 
-        # 5. Insertar en `evaluaciones`
+        # 5. Insertar en evaluaciones
         cur.execute("""
             INSERT INTO evaluaciones (
                 project_id_version, detalle, promedio_evaluacion, hash_pdf, proposal_status
@@ -402,8 +461,23 @@ def chat():
             guardar_mensaje(user_identity, "assistant", saludo)
             return jsonify({"response": saludo})
 
+        # Inicializar contexto si es primera vez en sesión
         if user_identity not in user_contexts:
             user_contexts[user_identity] = cargar_historial_por_identity(user_identity)
+            user_contexts[user_identity].extend(cargar_contexto_ampliado(user_identity))  # 🚀 Agrega toda la BD
+
+        # 🚀 Si el usuario pide explícitamente el historial
+        if re.search(r"(ver|mostrar|revisar|consultar).*(propuesta|evaluación|historial|enviad)", user_message.lower()):
+            historial_textual = []
+
+            for item in cargar_contexto_ampliado(user_identity):
+                if item["role"] == "system":
+                    historial_textual.append(item["content"])
+
+            respuesta_historial = "\n\n".join(historial_textual[-5:]) or "⚠️ No encontré propuestas anteriores registradas."
+            user_contexts[user_identity].append({"role": "assistant", "content": respuesta_historial})
+            guardar_mensaje(user_identity, 'assistant', respuesta_historial)
+            return jsonify({"response": respuesta_historial})
 
         # Procesamiento de PDF
         if pdf_file and pdf_file.filename.endswith(".pdf"):
@@ -438,11 +512,10 @@ def chat():
                     guardar_mensaje(user_identity, 'assistant', row[0])
                     return jsonify({"response": row[0]})
 
-                # 🚀 NUEVO FLUJO: extracción separada
+                # Nuevo procesamiento
                 datos_extraidos = extraer_datos_structurados_desde_texto(uploaded_text)
                 logging.debug(f"🧾 JSON extraído del PDF:\n{json.dumps(datos_extraidos, indent=2, ensure_ascii=False)}")
 
-                # ✅ Validar que al menos el líder esté presente
                 if not all([
                     datos_extraidos.get("nombres", "").strip(),
                     datos_extraidos.get("apellidos", "").strip(),
@@ -476,6 +549,7 @@ def chat():
             user_contexts[user_identity].append({'role': 'user', 'content': user_message})
             guardar_mensaje(user_identity, 'user', user_message)
 
+        # Insertar prompt del sistema si no está aún
         if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[user_identity]):
             user_contexts[user_identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
 
@@ -488,3 +562,4 @@ def chat():
     except Exception as e:
         logging.error(f"❌ Error general en /chat: {str(e)}")
         return jsonify({"response": "Error interno del servidor"}), 500
+
