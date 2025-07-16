@@ -3,6 +3,7 @@ import re
 import logging
 import pdfplumber
 import openai
+import json
 import psycopg2
 import pandas as pd
 import hashlib
@@ -144,81 +145,99 @@ def set_user_name(user_identity, full_name):
     except Exception as e:
         logging.error(f"❌ Error guardando nombre del usuario: {e}")
 
-def extraer_datos_pdf_con_ia(texto_pdf):
-    """
-    Extrae solo datos estructurados desde el texto plano de un PDF usando OpenAI.
-    Devuelve un diccionario con estructura esperada: proyecto, lider, equipo.
-    No hace evaluación.
-    """
-    try:
-        system_prompt = (
-            "Eres un asistente que extrae información estructurada de un texto de propuesta de emprendimiento. "
-            "Devuelve un JSON con los campos necesarios para la base de datos, dejando vacío todo lo que no esté disponible. "
-            "Solo responde el JSON, sin explicaciones.\n"
-            "  \"proyecto\": {\n"
-            "    \"nombre_del_negocio\": \"\",\n"
-            "    \"problema_y_solucion\": \"\",\n"
-            "    \"mercado\": \"\",\n"
-            "    \"competencia\": \"\",\n"
-            "    \"modelo_de_negocio\": \"\",\n"
-            "    \"escalabilidad\": \"\"\n"
-            "  },\n"
-            "  \"lider\": {\n"
-            "    \"nombres\": \"\",\n"
-            "    \"apellidos\": \"\",\n"
-            "    \"cedula\": \"\",\n"
-            "    \"facultad\": \"\",\n"
-            "    \"carrera\": \"\",\n"
-            "    \"numero_telefono\": \"\",\n"
-            "    \"correo_electronico\": \"\",\n"
-            "    \"semestre_que_cursa\": \"\"\n"
-            "  },\n"
-            "  \"equipo\": [\n"
-            "    {\"nombres\": \"\", \"apellidos\": \"\", \"cedula\": \"\", \"rol\": \"\", \"funcion\": \"\"}\n"
-            "  ]\n"
-            "}"
-        )
+def extraer_datos_structurados_desde_texto(texto):
+    import json
 
-        mensajes = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Texto del PDF:\n{texto_pdf}"}
-        ]
+    prompt = """
+    Eres un asistente que extrae datos estructurados de propuestas de emprendimiento. Devuelve un JSON con este formato exacto:
 
-        response = openai.ChatCompletion.create(
-            model=MODEL,
-            messages=mensajes,
-            temperature=0.2
-        )
-
-        import json
-        contenido = response.choices[0].message['content'].strip()
-
-        if not contenido:
-            raise ValueError("La IA no devolvió contenido.")
-
-        datos = json.loads(contenido)
-
-        # Validación mínima de estructura
-        if not all(k in datos for k in ("proyecto", "lider", "equipo")):
-            raise ValueError("El JSON no contiene todos los campos esperados.")
-
-        return datos
-
-    except Exception as e:
-        logging.error(f"❌ Error al extraer datos desde el PDF: {e}")
-        return {
-            "proyecto": {},
-            "lider": {},
-            "equipo": []
+    {
+    "nombre_del_negocio": "...",
+    "problema_y_solucion": "...",
+    "mercado": "...",
+    "competencia": "...",
+    "modelo_de_negocio": "...",
+    "escalabilidad": "...",
+    "nombres": "...",
+    "apellidos": "...",
+    "cedula": "...",
+    "facultad": "...",
+    "carrera": "...",
+    "numero_de_telefono": "...",
+    "correo_electronico": "...",
+    "semestre_que_cursa": "...",
+    "equipo_integrantes": [
+        {
+        "nombres": "...",
+        "apellidos": "...",
+        "cedula": "...",
+        "rol": "...",
+        "funcion": "..."
         }
+    ]
+    }
+
+    Devuelve únicamente el JSON sin texto adicional ni explicaciones.
+    """
+
+    mensajes = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": texto}
+    ]
+
+    response = openai.ChatCompletion.create(
+        model=MODEL,
+        messages=mensajes,
+        temperature=0.2,
+    )
+
+    raw = response.choices[0].message['content'].strip()
+
+    # 🔧 Eliminar envoltura de bloque de código si existe
+    if raw.startswith("```") and raw.endswith("```"):
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+
+    # 🔍 Log opcional para depurar
+    logging.debug(f"📤 Contenido limpiado para json.loads:\n{raw}")
+
+    if not raw:
+        raise ValueError("❌ Respuesta de OpenAI vacía")
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        logging.error(f"❌ JSON inválido después de limpiar:\n{raw}")
+        raise e
+
+def evaluar_propuesta_con_ia(texto):
+    mensajes = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"Texto extraído del PDF:\n{texto}"}
+    ]
+    response = openai.ChatCompletion.create(
+        model=MODEL,
+        messages=mensajes,
+        temperature=0.3,
+    )
+    return response.choices[0].message['content']
 
 def upsert_pdf_data(user_identity, datos, hash_pdf):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Paso 1: Insertar proyecto (permitir campos vacíos)
-        proyecto = datos.get("proyecto", {})
+        print("🟢 Iniciando inserción de datos desde PDF...")
+
+        # Asegurar campos del proyecto
+        campos_proyecto = [
+            "nombre_del_negocio", "problema_y_solucion", "mercado",
+            "competencia", "modelo_de_negocio", "escalabilidad"
+        ]
+        for campo in campos_proyecto:
+            datos[campo] = datos.get(campo, "") or ""
+
+        # 1. Insertar en `projects`
         cur.execute("""
             INSERT INTO projects (
                 user_identity, nombre_del_negocio, problema_y_solucion,
@@ -227,75 +246,94 @@ def upsert_pdf_data(user_identity, datos, hash_pdf):
             RETURNING id_version;
         """, (
             user_identity,
-            proyecto.get("nombre_del_negocio") or "",
-            proyecto.get("problema_y_solucion") or "",
-            proyecto.get("mercado") or "",
-            proyecto.get("competencia") or "",
-            proyecto.get("modelo_de_negocio") or "",
-            proyecto.get("escalabilidad") or ""
+            datos["nombre_del_negocio"],
+            datos["problema_y_solucion"],
+            datos["mercado"],
+            datos["competencia"],
+            datos["modelo_de_negocio"],
+            datos["escalabilidad"]
         ))
-        project_id_version = cur.fetchone()[0]
+        project_id = cur.fetchone()[0]
+        print("✅ Proyecto insertado. ID:", project_id)
 
-        # Paso 2: Insertar líder (evita campos nulos)
-        lider = datos.get("lider", {})
+        # 2. Insertar en `lider_proyecto`
+        campos_lider = [
+            "nombres", "apellidos", "cedula", "facultad",
+            "carrera", "numero_de_telefono", "correo_electronico", "semestre_que_cursa"
+        ]
+        for campo in campos_lider:
+            datos[campo] = datos.get(campo, "") or ""
+
         cur.execute("""
             INSERT INTO lider_proyecto (
-                project_id_version, nombres, apellidos, cedula, facultad, carrera,
-                numero_telefono, correo_electronico, semestre_que_cursa
+                project_id_version, nombres, apellidos, cedula,
+                facultad, carrera, numero_telefono, correo_electronico, semestre_que_cursa
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
         """, (
-            project_id_version,
-            lider.get("nombres") or "",
-            lider.get("apellidos") or "",
-            lider.get("cedula") or "",
-            lider.get("facultad") or "",
-            lider.get("carrera") or "",
-            lider.get("numero_telefono") or "",
-            lider.get("correo_electronico") or "",
-            lider.get("semestre_que_cursa") or ""
+            project_id,
+            datos["nombres"],
+            datos["apellidos"],
+            datos["cedula"],
+            datos["facultad"],
+            datos["carrera"],
+            datos["numero_de_telefono"],
+            datos["correo_electronico"],
+            datos["semestre_que_cursa"]
         ))
+        print("✅ Líder del proyecto insertado.")
 
-        # Paso 3: Insertar integrantes del equipo
-        for integrante in datos.get("equipo", []):
+        # 3. Insertar en `integrantes_equipo`
+        integrantes = datos.get("equipo_integrantes", [])
+        for integrante in integrantes:
+            for campo in ["nombres", "apellidos", "cedula", "rol", "funcion"]:
+                integrante[campo] = integrante.get(campo, "") or ""
+
             cur.execute("""
                 INSERT INTO integrantes_equipo (
                     project_id_version, nombres, apellidos, cedula, rol, funcion
                 ) VALUES (%s, %s, %s, %s, %s, %s);
             """, (
-                project_id_version,
-                integrante.get("nombres") or "",
-                integrante.get("apellidos") or "",
-                integrante.get("cedula") or "",
-                integrante.get("rol") or "",
-                integrante.get("funcion") or ""
+                project_id,
+                integrante["nombres"],
+                integrante["apellidos"],
+                integrante["cedula"],
+                integrante["rol"],
+                integrante["funcion"]
             ))
+        print(f"✅ {len(integrantes)} integrantes insertados.")
 
-        # Paso 4: Insertar evaluación (aunque sea de rechazo)
-        detalle = datos.get("evaluacion", "") or ""
-        promedio = datos.get("promedio_evaluacion", 0.0)
-        estado = datos.get("estado", "pendiente_aprobacion_chatbot")
+        # 4. Extraer promedio de evaluación y estado
+        match = re.search(r"promedio\s*final.*?=\s*(\d+(?:[.,]\d+)?)", respuesta_ia.lower())
+        promedio = 0.0
+        if match:
+            try:
+                promedio = float(match.group(1).replace(",", "."))
+                promedio = round(promedio, 2)
+                if not (0 <= promedio <= 10):
+                    promedio = 0.0
+            except:
+                promedio = 0.0
 
-        # Validar tipo de promedio
-        try:
-            promedio = float(promedio)
-        except:
-            promedio = 0.0
+        estado = "aprobado_chatbot" if promedio >= 8 else "pendiente_aprobacion_chatbot"
 
+        # 5. Insertar en `evaluaciones`
         cur.execute("""
             INSERT INTO evaluaciones (
-                project_id_version, detalle, proposal_status, promedio_evaluacion, hash_pdf
+                project_id_version, detalle, promedio_evaluacion, hash_pdf, proposal_status
             ) VALUES (%s, %s, %s, %s, %s);
         """, (
-            project_id_version,
-            detalle,
-            estado,
+            project_id,
+            respuesta_ia,
             promedio,
-            hash_pdf
+            hash_pdf,
+            estado
         ))
+        print("✅ Evaluación insertada con promedio:", promedio, "y estado:", estado)
 
         conn.commit()
         cur.close()
         conn.close()
+        print("✅ Todos los datos guardados correctamente.")
 
     except Exception as e:
         logging.error(f"❌ Error en upsert_pdf_data: {e}")
@@ -338,18 +376,14 @@ def chat():
         user_name = get_user_name(user_identity)
 
         if user_message == "__ping__":
-            if user_name:
-                saludo = (
-                    f"¡Hola de nuevo, {user_name}! 👋\n\n"
-                    "🙌 Ya estás registrado en el sistema.\n\n"
-                    "**¿Qué deseas hacer hoy?**\n\n"
-                    "➡️  *Hacer preguntas sobre INNOVUG*❓\n\n"
-                    "➡️  *Subir una nueva propuesta en PDF para ser evaluada*📄\n\n"
-                    "_Estoy listo para ayudarte 😊_"
-                )
-            else:
-                saludo = "👋 ¡Hola! Antes de continuar, por favor ingresa tu nombre completo:"
-
+            saludo = (
+                f"¡Hola de nuevo, {user_name}! 👋\n\n"
+                "🙌 Ya estás registrado en el sistema.\n\n"
+                "**¿Qué deseas hacer hoy?**\n\n"
+                "➡️  *Hacer preguntas sobre INNOVUG*❓\n\n"
+                "➡️  *Subir una nueva propuesta en PDF para ser evaluada*📄\n\n"
+                "_Estoy listo para ayudarte 😊_"
+            ) if user_name else "👋 ¡Hola! Antes de continuar, por favor ingresa tu nombre completo:"
             user_contexts.setdefault(user_identity, []).append({"role": "assistant", "content": saludo})
             guardar_mensaje(user_identity, "assistant", saludo)
             return jsonify({"response": saludo, "nombre": user_name} if user_name else {"response": saludo})
@@ -371,126 +405,67 @@ def chat():
         if user_identity not in user_contexts:
             user_contexts[user_identity] = cargar_historial_por_identity(user_identity)
 
-        # Inyectar resumen del último proyecto si existe
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT p.nombre_del_negocio, p.problema_y_solucion, p.mercado, p.competencia,
-                       p.modelo_de_negocio, p.escalabilidad,
-                       l.nombres, l.apellidos, l.cedula, l.facultad, l.carrera,
-                       l.numero_telefono, l.correo_electronico, l.semestre_que_cursa
-                FROM projects p
-                JOIN lider_proyecto l ON p.id_version = l.project_id_version
-                WHERE p.user_identity = %s
-                ORDER BY p.created_at DESC
-                LIMIT 1
-            """, (user_identity,))
-            row = cur.fetchone()
-            cur.close()
-            conn.close()
-            if row:
-                campos = [
-                    "Nombre del negocio", "Problema y solución", "Mercado", "Competencia",
-                    "Modelo de negocio", "Escalabilidad",
-                    "Nombres", "Apellidos", "Cédula", "Facultad", "Carrera",
-                    "Número de teléfono", "Correo electrónico", "Semestre que cursa"
-                ]
-                resumen_usuario = "\n".join(f"{campo}: {valor}" for campo, valor in zip(campos, row) if valor)
-                user_contexts[user_identity].insert(1, {
-                    "role": "user",
-                    "content": f"📄 Información registrada del usuario:\n{resumen_usuario}"
-                })
-        except Exception as e:
-            logging.warning(f"⚠️ No se pudo inyectar resumen del proyecto: {e}")
-
-        # Cargar historial reciente si no está
-        try:
-            historial_db = cargar_historial_por_identity(user_identity)[-MAX_CONTEXT_LENGTH:]
-            for m in historial_db:
-                if m not in user_contexts[user_identity]:
-                    user_contexts[user_identity].append(m)
-        except Exception as e:
-            logging.warning(f"⚠️ No se pudo cargar historial de chat: {e}")
-
-        if not user_name:
-            bienvenida = "👋 ¡Hola! Soy INNOVUG, tu asistente virtual 🤖\n\nPara comenzar, por favor ingresa tu nombre completo:"
-            user_contexts[user_identity].append({"role": "assistant", "content": bienvenida})
-            guardar_mensaje(user_identity, "assistant", bienvenida)
-            return jsonify({"response": bienvenida})
-
         # Procesamiento de PDF
         if pdf_file and pdf_file.filename.endswith(".pdf"):
             try:
                 uploaded_text = extract_text_from_pdf(pdf_file)
+                logging.debug(f"📄 Texto extraído del PDF:\n{uploaded_text[:1000]}...")
                 if not compare_pdfs(REFERENCE_TEXT, uploaded_text):
                     return jsonify({"response": (
                         "📄 El archivo enviado no parece una propuesta válida. Por favor, descarga el formato oficial desde: "
                         "<a href='https://www.dropbox.com/scl/fi/zuibj62g5wjsdzcovf4pb/FICHA-DE-EMPRENDEDORES_NOMBRE-NEGOCIO.docx?rlkey=sec681vbpcthobyjvzqacs084&st=wwpcxlje&dl=0' target='_blank'>Formato Propuesta WORD</a>"
                     )})
 
-                # Calcular hash del texto
                 hash_pdf = generar_hash_pdf(uploaded_text)
 
-                # Buscar evaluación previa por hash
-                try:
-                    conn = get_db_connection()
-                    cur = conn.cursor()
-                    cur.execute("""
-                        SELECT e.detalle
-                        FROM evaluaciones e
-                        JOIN projects p ON p.id_version = e.project_id_version
-                        WHERE p.user_identity = %s AND e.hash_pdf = %s
-                        ORDER BY e.created_at DESC
-                        LIMIT 1
-                    """, (user_identity, hash_pdf))
-                    row = cur.fetchone()
-                    cur.close()
-                    conn.close()
+                # Verificar si ya fue evaluado
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT e.detalle
+                    FROM evaluaciones e
+                    JOIN projects p ON p.id_version = e.project_id_version
+                    WHERE p.user_identity = %s AND e.hash_pdf = %s
+                    ORDER BY e.created_at DESC
+                    LIMIT 1
+                """, (user_identity, hash_pdf))
+                row = cur.fetchone()
+                cur.close()
+                conn.close()
 
-                    if row:
-                        logging.info("📄 Reutilizando evaluación previa por hash.")
-                        guardar_mensaje(user_identity, 'assistant', row[0])
-                        return jsonify({"response": row[0]})
+                if row:
+                    logging.info("📄 Reutilizando evaluación previa por hash.")
+                    guardar_mensaje(user_identity, 'assistant', row[0])
+                    return jsonify({"response": row[0]})
 
-                except Exception as e:
-                    logging.warning(f"⚠️ No se pudo verificar hash en BD: {e}")
+                # 🚀 NUEVO FLUJO: extracción separada
+                datos_extraidos = extraer_datos_structurados_desde_texto(uploaded_text)
+                logging.debug(f"🧾 JSON extraído del PDF:\n{json.dumps(datos_extraidos, indent=2, ensure_ascii=False)}")
 
-                # Evaluar nuevo PDF
-                datos_extraidos = extraer_datos_pdf_con_ia(uploaded_text)
-                datos_extraidos["cedula"] = datos_extraidos.get("cedula")
-                datos_extraidos["identity"] = user_identity
+                # ✅ Validar que al menos el líder esté presente
+                if not all([
+                    datos_extraidos.get("nombres", "").strip(),
+                    datos_extraidos.get("apellidos", "").strip(),
+                    datos_extraidos.get("cedula", "").strip()
+                ]):
+                    return jsonify({
+                        "response": (
+                            "❌ La propuesta está incompleta.\n\n"
+                            "Para poder evaluarla, asegúrate de que el líder del proyecto tenga al menos:\n"
+                            "- Nombres\n- Apellidos\n- Cédula\n\n"
+                            "Por favor, corrige el documento y vuelve a intentarlo."
+                        )
+                    })
 
-                user_contexts[user_identity].append({'role': 'user', 'content': f"DATOS EXTRAÍDOS DEL PDF:\n{uploaded_text}"})
-                guardar_mensaje(user_identity, 'user', uploaded_text)
+                respuesta_evaluacion = evaluar_propuesta_con_ia(uploaded_text)
 
-                if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[user_identity]):
-                    user_contexts[user_identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
+                # Guardar en base de datos
+                upsert_pdf_data(user_identity, datos_extraidos, respuesta_evaluacion, hash_pdf)
 
-                respuesta = openai_IA(user_contexts[user_identity])
-                user_contexts[user_identity].append({'role': 'assistant', 'content': respuesta})
-                guardar_mensaje(user_identity, 'assistant', respuesta)
+                user_contexts[user_identity].append({'role': 'assistant', 'content': respuesta_evaluacion})
+                guardar_mensaje(user_identity, 'assistant', respuesta_evaluacion)
 
-                # Extraer evaluación IA desde JSON en respuestas
-                try:
-                    import json
-                    evaluacion_ia = json.loads(respuesta)
-
-                    if not all(k in evaluacion_ia for k in ("evaluacion", "promedio_evaluacion", "estado")):
-                        raise ValueError("Faltan campos en el JSON de evaluación")
-
-                    datos_extraidos.update(evaluacion_ia)
-
-                except Exception as e:
-                    logging.warning(f"⚠️ La IA no devolvió un JSON válido de evaluación: {e}")
-                    datos_extraidos["evaluacion"] = respuesta
-                    datos_extraidos["promedio_evaluacion"] = 0.0
-                    datos_extraidos["estado"] = "pendiente_aprobacion_chatbot"
-
-                # Guardar todo en BD
-                upsert_pdf_data(user_identity, datos_extraidos, hash_pdf)
-
-                return jsonify({"response": respuesta})
+                return jsonify({"response": respuesta_evaluacion})
 
             except Exception as e:
                 logging.error(f"❌ Error procesando PDF: {e}")
