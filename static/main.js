@@ -240,8 +240,13 @@ window.guardarNombre = () => {
   const escribiendo = document.createElement("div");
   escribiendo.className = "mensaje-bot fade-in";
   escribiendo.id = "escribiendo";
-  escribiendo.innerHTML = "<em>Escribiendo...</em>";
+  escribiendo.innerHTML = `
+    <div class="typing-indicator">
+      <span></span><span></span><span></span>
+    </div>
+  `;
   chatOutput.appendChild(escribiendo);
+  scrollChatToBottom(); 
 
   const formData = new FormData();
   formData.append("user_id", userId);
@@ -288,7 +293,10 @@ window.guardarNombre = () => {
 };
 
 function scrollChatToBottom() {
-  chatOutput.scrollTop = chatOutput.scrollHeight;
+  chatOutput.scrollTo({
+    top: chatOutput.scrollHeight,
+    behavior: "smooth",
+  });
 }
 
 function mostrarSolicitudNombre() {
@@ -383,8 +391,15 @@ async function enviarMensaje(message, file = null) {
   const escribiendo = document.createElement("div");
   escribiendo.className = "mensaje-bot fade-in";
   escribiendo.id = "escribiendo";
-  escribiendo.innerHTML = "<em>Escribiendo...</em>";
+  escribiendo.innerHTML = `
+    <div class="typing-indicator">
+      <span></span><span></span><span></span>
+    </div>
+  `;
   chatOutput.appendChild(escribiendo);
+  requestAnimationFrame(() => {
+  scrollChatToBottom();
+  });
 
   try {
     const response = await fetch(`${API_BASE}/api/chat`, {
