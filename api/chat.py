@@ -217,7 +217,6 @@ def cargar_contexto_ampliado(user_identity):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Obtener todos los proyectos del usuario
         cur.execute("""
             SELECT id_version, nombre_del_negocio, problema_y_solucion, mercado, competencia,
                    modelo_de_negocio, escalabilidad, created_at
@@ -229,9 +228,21 @@ def cargar_contexto_ampliado(user_identity):
 
         for p in proyectos:
             id_version = p[0]
+
+            # 🧑‍💼 Buscar líder del proyecto
+            cur.execute("""
+                SELECT nombres, apellidos
+                FROM lider_proyecto
+                WHERE project_id_version = %s
+                LIMIT 1
+            """, (id_version,))
+            lider = cur.fetchone()
+            lider_nombre = f"{lider[0]} {lider[1]}" if lider else "No especificado"
+
             descripcion = f"""
 📦 Proyecto #{id_version}:
 - Nombre: {p[1]}
+- Líder del proyecto: {lider_nombre}
 - Problema y solución: {p[2]}
 - Mercado: {p[3]}
 - Competencia: {p[4]}
@@ -239,9 +250,10 @@ def cargar_contexto_ampliado(user_identity):
 - Escalabilidad: {p[6]}
 - Fecha de creación: {p[7]}
             """.strip()
+
             contexto.append({"role": "system", "content": descripcion})
 
-            # Obtener evaluaciones
+            # 📑 Evaluaciones asociadas
             cur.execute("""
                 SELECT detalle, promedio_evaluacion, proposal_status, created_at
                 FROM evaluaciones
@@ -252,7 +264,7 @@ def cargar_contexto_ampliado(user_identity):
 
             for e in evaluaciones:
                 detalle_eval = f"""
-📑 Evaluación:
+📑 Evaluación del Proyecto #{id_version}:
 - Promedio: {e[1]}
 - Estado: {e[2]}
 - Fecha: {e[3]}
@@ -267,7 +279,6 @@ def cargar_contexto_ampliado(user_identity):
         logging.error(f"❌ Error cargando contexto ampliado: {e}")
 
     return contexto
-
 
 def evaluar_propuesta_con_ia(texto):
     mensajes = [
@@ -453,7 +464,12 @@ def chat():
 
         user_name = get_user_name(user_identity)
 
+        # ✅ Siempre reconstruir el contexto al recibir "__ping__"
         if user_message == "__ping__":
+            historial = cargar_historial_por_identity(user_identity)
+            contexto_bd = cargar_contexto_ampliado(user_identity)
+            user_contexts[user_identity] = historial + contexto_bd
+
             saludo = (
                 f"¡Hola de nuevo, {user_name}! 👋\n\n"
                 "🙌 Ya estás registrado en el sistema.\n\n"
@@ -462,10 +478,12 @@ def chat():
                 "➡️  *Subir una nueva propuesta en PDF para ser evaluada*📄\n\n"
                 "_Estoy listo para ayudarte 😊_"
             ) if user_name else "👋 ¡Hola! Antes de continuar, por favor ingresa tu nombre completo:"
-            user_contexts.setdefault(user_identity, []).append({"role": "assistant", "content": saludo})
+
+            user_contexts[user_identity].append({"role": "assistant", "content": saludo})
             guardar_mensaje(user_identity, "assistant", saludo)
             return jsonify({"response": saludo, "nombre": user_name} if user_name else {"response": saludo})
 
+        # Registrar nombre si viene en la etapa inicial
         if etapa == "nombre" and user_message:
             set_user_name(user_identity, user_message.title())
             saludo = (
@@ -480,25 +498,23 @@ def chat():
             guardar_mensaje(user_identity, "assistant", saludo)
             return jsonify({"response": saludo})
 
-        # Inicializar contexto si es primera vez en sesión
+        # Cargar contexto si no existe en memoria
         if user_identity not in user_contexts:
             user_contexts[user_identity] = cargar_historial_por_identity(user_identity)
-            user_contexts[user_identity].extend(cargar_contexto_ampliado(user_identity))  # 🚀 Agrega toda la BD
+            user_contexts[user_identity].extend(cargar_contexto_ampliado(user_identity))
 
-        # 🚀 Si el usuario pide explícitamente el historial
+        # Mostrar historial de propuestas/evaluaciones
         if re.search(r"(ver|mostrar|revisar|consultar).*(propuesta|evaluación|historial|enviad)", user_message.lower()):
             historial_textual = []
-
             for item in cargar_contexto_ampliado(user_identity):
                 if item["role"] == "system":
                     historial_textual.append(item["content"])
-
             respuesta_historial = "\n\n".join(historial_textual[-5:]) or "⚠️ No encontré propuestas anteriores registradas."
             user_contexts[user_identity].append({"role": "assistant", "content": respuesta_historial})
             guardar_mensaje(user_identity, 'assistant', respuesta_historial)
             return jsonify({"response": respuesta_historial})
 
-        # Procesamiento de PDF
+        # 📄 Procesamiento de PDF
         if pdf_file and pdf_file.filename.endswith(".pdf"):
             try:
                 uploaded_text = extract_text_from_pdf(pdf_file)
@@ -531,7 +547,7 @@ def chat():
                     guardar_mensaje(user_identity, 'assistant', row[0])
                     return jsonify({"response": row[0]})
 
-                # Nuevo procesamiento
+                # Extraer datos y evaluar propuesta
                 datos_extraidos = extraer_datos_structurados_desde_texto(uploaded_text)
                 logging.debug(f"🧾 JSON extraído del PDF:\n{json.dumps(datos_extraidos, indent=2, ensure_ascii=False)}")
 
@@ -550,10 +566,7 @@ def chat():
                     })
 
                 respuesta_evaluacion = evaluar_propuesta_con_ia(uploaded_text)
-
-                # Guardar en base de datos
                 upsert_pdf_data(user_identity, datos_extraidos, respuesta_evaluacion, hash_pdf)
-
                 user_contexts[user_identity].append({'role': 'assistant', 'content': respuesta_evaluacion})
                 guardar_mensaje(user_identity, 'assistant', respuesta_evaluacion)
 
@@ -563,12 +576,12 @@ def chat():
                 logging.error(f"❌ Error procesando PDF: {e}")
                 return jsonify({"response": f"Error procesando PDF: {str(e)}"})
 
-        # Procesamiento de texto normal
+        # 🧠 Procesamiento de texto normal
         if user_message:
             user_contexts[user_identity].append({'role': 'user', 'content': user_message})
             guardar_mensaje(user_identity, 'user', user_message)
 
-        # Insertar prompt del sistema si no está aún
+        # Añadir el SYSTEM_PROMPT si aún no está
         if SYSTEM_PROMPT and not any(m['role'] == 'system' for m in user_contexts[user_identity]):
             user_contexts[user_identity].insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
 
