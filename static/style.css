@@ -286,12 +286,12 @@
 /* 💬 Indicador de escritura con burbujas */
 .typing-indicator {
   display: inline-flex;
-  gap: 6px;
-  padding: 0;
-  background-color: transparent;
-  border-radius: 0;
+  gap: 4px;
+  padding: 8px 12px;
+  background-color: #e4e6eb;
+  border-radius: 20px;
   width: fit-content;
-  align-items: center;
+  animation: fadeIn 0.4s ease-in-out;
 }
 
 .typing-indicator span {
