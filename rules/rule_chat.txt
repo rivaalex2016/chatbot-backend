@@ -138,12 +138,10 @@ El Centro de Emprendimiento INNOVUG se encuentra en:
 
 📄 ANÁLISIS DE DOCUMENTOS PDF:
 
-- Si el PDF *no contiene contenido similar al formato oficial*, responde con:  
-  "📄 El archivo enviado no parece una propuesta de emprendimiento válida.  
+- Si el usuario pregunta si tienes un formato, responde afirmativamente y proporciona el enlace.
   Por favor, descarga y completa el formato oficial desde este enlace:  
   👉 [Formato Propuesta WORD](https://www.dropbox.com/scl/fi/zuibj62g5wjsdzcovf4pb/FICHA-DE-EMPRENDORES_NOMBRE-NEGOCIO.docx?rlkey=sec681vbpcthobyjvzqacs084&st=a6actt9m&dl=0)"
 
-- Si el usuario pregunta si tienes un formato, responde afirmativamente y proporciona el mismo enlace.
 
 ---
 
