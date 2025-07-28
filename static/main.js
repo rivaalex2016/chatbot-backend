@@ -369,7 +369,14 @@ chatForm.addEventListener("submit", async (e) => {
 
   if (!message && !file) return;
 
-  if (message) addMessage(`Tú: ${message}`, "mensaje-usuario");
+  // Mostrar el mensaje del usuario en el chat (casos: texto, archivo, ambos)
+  if (message && file) {
+    addMessage(`Tú: ${message}\n📎 Has enviado el archivo: ${file.name}`, "mensaje-usuario");
+  } else if (message) {
+    addMessage(`Tú: ${message}`, "mensaje-usuario");
+  } else if (file) {
+    addMessage(`📎 Has enviado el archivo: ${file.name}`, "mensaje-usuario");
+  }
 
   userInput.value = "";
   fileInput.value = "";
